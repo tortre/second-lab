@@ -38,7 +38,7 @@ This file separates verified work from intended work. A checked item must have r
 ## Evidence still required before submission
 
 - Initial baseline commit hash: `85a09f9`
-- Education implementation commit hash: `PENDING — record after commit`
+- Education implementation commit hash: `1e6c2e4`
 - Production deployment URL: `https://second-lab.vercel.app`
 - Live smoke-test timestamp and response ID: `PENDING`
 - Cached evaluation artifact/command: `docs/EVALUATION_SCORECARD.md` / `pnpm eval:cached`
