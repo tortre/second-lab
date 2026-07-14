@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "second-lab.evaluation-cases.v1",
+  "publishedOn": "2026-07-14",
+  "categories": [
+    "metric-mismatch",
+    "data-leakage",
+    "unsupported-baseline",
+    "reproducibility"
+  ],
+  "cases": [
+    {
+      "id": "metric-mismatch",
+      "title": "Metric mismatch only",
+      "manuscriptFileName": "metric-mismatch.md",
+      "codeFileName": "metric-mismatch.py",
+      "manuscript": "# Seeded metric case\n\nWe report macro-F1 of 0.84 on the held-out set. The split uses specimen groups and seed 2026. No baseline comparison is claimed.",
+      "code": "from sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import GroupShuffleSplit\n\nSEED = 2026\nscore = accuracy_score(y_test, predictions)\nprint(score)\n",
+      "expectedCategories": [
+        "metric-mismatch"
+      ],
+      "notes": "The label in the paper and the metric function in code disagree."
+    },
+    {
+      "id": "data-leakage",
+      "title": "Augmentation lineage leakage only",
+      "manuscriptFileName": "data-leakage.md",
+      "codeFileName": "data-leakage.py",
+      "manuscript": "# Seeded leakage case\n\nWe report accuracy of 0.93 on unseen source specimens. We used seed 2026 and do not make a baseline claim.",
+      "code": "import numpy as np\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\nSEED = 2026\nrotated = np.stack([np.rot90(image) for image in images])\nall_images = np.concatenate([images, rotated])\nall_labels = np.concatenate([labels, labels])\nX_train, X_test, y_train, y_test = train_test_split(all_images, all_labels, random_state=SEED)\nscore = accuracy_score(y_test, predictions)\n",
+      "expectedCategories": [
+        "data-leakage"
+      ],
+      "notes": "Derived copies are created before the row-level split."
+    },
+    {
+      "id": "unsupported-baseline",
+      "title": "Unsupported baseline claim only",
+      "manuscriptFileName": "unsupported-baseline.md",
+      "codeFileName": "unsupported-baseline.py",
+      "manuscript": "# Seeded baseline case\n\nWith seed 2026 and a specimen-grouped split, our model achieved accuracy of 0.88 and outperformed the majority-class baseline at 0.62.",
+      "code": "from sklearn.metrics import accuracy_score\n\nSEED = 2026\nmodel = train_model(X_train, y_train, seed=SEED)\npredictions = model.predict(X_test)\nscore = accuracy_score(y_test, predictions)\nprint(score)\n",
+      "expectedCategories": [
+        "unsupported-baseline"
+      ],
+      "notes": "The named comparison has no implementation or score path."
+    },
+    {
+      "id": "reproducibility",
+      "title": "Reproducibility defect only",
+      "manuscriptFileName": "reproducibility.md",
+      "codeFileName": "reproducibility.py",
+      "manuscript": "# Seeded reproducibility case\n\nWe report accuracy of 0.81. We do not claim a baseline comparison. The exact random seed and split IDs were not saved.",
+      "code": "from sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\nX_train, X_test, y_train, y_test = train_test_split(images, labels, shuffle=True)\nscore = accuracy_score(y_test, predictions)\n",
+      "expectedCategories": [
+        "reproducibility"
+      ],
+      "notes": "The result has no stable seed or saved split identity."
+    },
+    {
+      "id": "mixed-defects",
+      "title": "LeafLens mixed flagship defects",
+      "manuscriptFileName": "student-paper.md",
+      "codeFileName": "student-analysis.py",
+      "manuscriptPath": "public/papers/leaflens/student-paper.md",
+      "codePath": "public/papers/leaflens/student-analysis.py",
+      "expectedCategories": [
+        "metric-mismatch",
+        "data-leakage",
+        "unsupported-baseline",
+        "reproducibility"
+      ],
+      "notes": "The public LeafLens prepared study combines all four seeded categories.",
+      "manuscript": "# LeafLens: Classifying Schoolyard Leaves with a Small Vision Model\n\n**Student research draft — prepared demonstration**\n\n## Abstract\n\nLeafLens classifies six common tree species from 480 phone photographs. Our model achieved a macro-F1 score of 0.91 on the held-out test set and outperformed both a majority-class baseline and a color-histogram logistic-regression baseline.\n\n## Dataset and split\n\nWe photographed 80 individual leaves, with one leaf placed on a white sheet in each image session. Six photographs were taken of each physical leaf from slightly different angles.\n\nTo make the model robust to camera orientation, we created one 90-degree rotated copy of every photograph. We then randomly assigned 80% of the resulting images to training and 20% to testing.\n\n## Model\n\nWe trained a small convolutional network for 20 epochs. Images were resized to 128 × 128 pixels and normalized to the range 0–1.\n\n## Evaluation\n\nWe used macro-F1 because the six species were not perfectly balanced. The final macro-F1 was 0.91, compared with 0.18 for the majority-class baseline and 0.74 for the color-histogram logistic-regression baseline.\n\nThese results show that LeafLens is better than both simpler alternatives and generalizes to previously unseen leaves.\n\n## Reproducibility\n\nThe final notebook was run on a school laptop. The exact random seed, package versions, and train/test image IDs were not saved.\n\n## Conclusion\n\nLeafLens could help students identify local trees from a phone photograph. Future work will add more schools and photograph leaves under different lighting conditions.\n",
+      "code": "import numpy as np\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\nfrom leaflens_model import load_leaf_photos, train_leafnet\n\n\nimages, labels = load_leaf_photos(\"data/leaves\")\nrotated_images = np.stack([np.rot90(image) for image in images])\nimages = np.concatenate([images, rotated_images])\nlabels = np.concatenate([labels, labels])\n\nX_train, X_test, y_train, y_test = train_test_split(\n    images,\n    labels,\n    test_size=0.20,\n    shuffle=True,\n)\n\nmodel = train_leafnet(X_train, y_train, epochs=20)\npredictions = model.predict(X_test).argmax(axis=1)\n\nmacro_f1 = accuracy_score(y_test, predictions)\nprint(f\"LeafLens macro-F1: {macro_f1:.2f}\")\n"
+    },
+    {
+      "id": "clean-control",
+      "title": "Corrected LeafLens clean control",
+      "manuscriptFileName": "clean-control-paper.md",
+      "codeFileName": "clean-control-analysis.py",
+      "manuscriptPath": "public/papers/leaflens/clean-control-paper.md",
+      "codePath": "public/papers/leaflens/clean-control-analysis.py",
+      "expectedCategories": [],
+      "notes": "Metric, grouping, baselines, claim scope, seed, and reproducibility details are aligned.",
+      "manuscript": "# LeafLens: Classifying Schoolyard Leaves with a Small Vision Model\n\n**Corrected student research draft — clean evaluation control**\n\n## Abstract\n\nLeafLens classifies six common tree species from 480 phone photographs. On a held-out, leaf-grouped test set, our model achieved macro-F1 of 0.87. It exceeded a majority-class baseline (0.18) and a color-histogram logistic-regression baseline (0.82) under the same split.\n\n## Dataset and split\n\nWe photographed 80 individual leaves, with six photographs of each physical leaf. We assigned physical leaf IDs—not individual images—to the training or test set with a fixed seed. Rotated copies were created only after the split and only for training images, so no original leaf or derived image appears in both sets.\n\n## Model and baselines\n\nWe trained a small convolutional network for 20 epochs. We compared it with a majority-class predictor and a logistic regression model trained on color histograms. All models used the same held-out leaf IDs.\n\n## Evaluation\n\nWe calculated macro-F1 with the same six labels for every model. LeafLens reached 0.87 macro-F1, the logistic-regression baseline reached 0.82, and the majority-class baseline reached 0.18. In this dataset, LeafLens performed better than the two implemented baselines; this does not establish superiority outside these schools or imaging conditions.\n\n## Reproducibility\n\nThe repository records seed 2026, the train/test leaf-ID manifest, Python and package versions, preprocessing settings, and the commands used to reproduce the three scores.\n\n## Conclusion\n\nLeafLens is a promising classroom prototype. More schools, seasons, devices, and an independently collected external test set are needed before making broader generalization claims.\n",
+      "code": "import random\n\nimport numpy as np\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.metrics import f1_score\nfrom sklearn.model_selection import GroupShuffleSplit\n\nfrom leaflens_model import (\n    color_histograms,\n    load_leaf_photos_with_leaf_ids,\n    train_leafnet,\n)\n\n\nSEED = 2026\nrandom.seed(SEED)\nnp.random.seed(SEED)\n\nimages, labels, leaf_ids = load_leaf_photos_with_leaf_ids(\"data/leaves\")\nsplitter = GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=SEED)\ntrain_idx, test_idx = next(splitter.split(images, labels, groups=leaf_ids))\n\nX_train_raw, y_train = images[train_idx], labels[train_idx]\nX_test, y_test = images[test_idx], labels[test_idx]\n\nrotated_train = np.stack([np.rot90(image) for image in X_train_raw])\nX_train = np.concatenate([X_train_raw, rotated_train])\ny_train_augmented = np.concatenate([y_train, y_train])\n\nleafnet = train_leafnet(X_train, y_train_augmented, epochs=20, seed=SEED)\nleafnet_predictions = leafnet.predict(X_test).argmax(axis=1)\n\nmajority_label = np.bincount(y_train).argmax()\nmajority_predictions = np.full_like(y_test, majority_label)\n\nbaseline = LogisticRegression(max_iter=2_000, random_state=SEED)\nbaseline.fit(color_histograms(X_train_raw), y_train)\nbaseline_predictions = baseline.predict(color_histograms(X_test))\n\nscores = {\n    \"leaflens\": f1_score(y_test, leafnet_predictions, average=\"macro\"),\n    \"majority\": f1_score(y_test, majority_predictions, average=\"macro\"),\n    \"color_logistic_regression\": f1_score(\n        y_test,\n        baseline_predictions,\n        average=\"macro\",\n    ),\n}\n\nfor name, macro_f1 in scores.items():\n    print(f\"{name} macro-F1: {macro_f1:.2f}\")\n"
+    }
+  ]
+}

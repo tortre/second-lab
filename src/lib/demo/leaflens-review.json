@@ -1,0 +1,331 @@
+{
+  "schemaVersion": "second-lab.review.v1",
+  "fixtureVersion": "leaflens-2026-07-14-v1",
+  "reviewId": "leaflens-prepared-review",
+  "executionMode": "cached-demo",
+  "project": {
+    "title": "LeafLens: Classifying Schoolyard Leaves with a Small Vision Model",
+    "audience": "student-researcher",
+    "manuscriptFile": "student-paper.md",
+    "codeFile": "student-analysis.py",
+    "cleanControlManuscriptFile": "clean-control-paper.md",
+    "cleanControlCodeFile": "clean-control-analysis.py"
+  },
+  "summary": {
+    "headline": "Three claims need stronger evidence before LeafLens can support its conclusion.",
+    "findingCounts": {
+      "confirmed": 3,
+      "concern": 1,
+      "unverified": 0
+    },
+    "nextStep": "Defend each finding, revise the method, and hand the mastery receipt to a mentor."
+  },
+  "sources": [
+    {
+      "id": "source-manuscript",
+      "kind": "student-artifact",
+      "title": "LeafLens student paper",
+      "fileName": "student-paper.md",
+      "url": null,
+      "verification": "deterministic-file"
+    },
+    {
+      "id": "source-code",
+      "kind": "student-artifact",
+      "title": "LeafLens student analysis",
+      "fileName": "student-analysis.py",
+      "url": null,
+      "verification": "deterministic-file"
+    },
+    {
+      "id": "source-sklearn-accuracy",
+      "kind": "external",
+      "title": "scikit-learn accuracy_score reference",
+      "publisher": "scikit-learn",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.accuracy_score.html",
+      "verification": "fixture-curated"
+    },
+    {
+      "id": "source-sklearn-f1",
+      "kind": "external",
+      "title": "scikit-learn f1_score reference",
+      "publisher": "scikit-learn",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.metrics.f1_score.html",
+      "verification": "fixture-curated"
+    },
+    {
+      "id": "source-sklearn-leakage",
+      "kind": "external",
+      "title": "scikit-learn common pitfalls: data leakage",
+      "publisher": "scikit-learn",
+      "url": "https://scikit-learn.org/stable/common_pitfalls.html#data-leakage",
+      "verification": "fixture-curated"
+    },
+    {
+      "id": "source-sklearn-groups",
+      "kind": "external",
+      "title": "scikit-learn GroupShuffleSplit reference",
+      "publisher": "scikit-learn",
+      "url": "https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.GroupShuffleSplit.html",
+      "verification": "fixture-curated"
+    },
+    {
+      "id": "source-sklearn-randomness",
+      "kind": "external",
+      "title": "scikit-learn controlling randomness",
+      "publisher": "scikit-learn",
+      "url": "https://scikit-learn.org/stable/common_pitfalls.html#controlling-randomness",
+      "verification": "fixture-curated"
+    },
+    {
+      "id": "source-sklearn-evaluation",
+      "kind": "external",
+      "title": "scikit-learn model evaluation guide",
+      "publisher": "scikit-learn",
+      "url": "https://scikit-learn.org/stable/modules/model_evaluation.html",
+      "verification": "fixture-curated"
+    }
+  ],
+  "anchors": [
+    {
+      "id": "paper-metric-claim",
+      "artifactType": "manuscript",
+      "fileName": "student-paper.md",
+      "section": "Evaluation",
+      "lineStart": 21,
+      "lineEnd": 21,
+      "excerpt": "We used macro-F1 because the six species were not perfectly balanced. The final macro-F1 was 0.91, compared with 0.18 for the majority-class baseline and 0.74 for the color-histogram logistic-regression baseline.",
+      "verification": "verified"
+    },
+    {
+      "id": "code-accuracy-import",
+      "artifactType": "code",
+      "fileName": "student-analysis.py",
+      "lineStart": 2,
+      "lineEnd": 2,
+      "excerpt": "from sklearn.metrics import accuracy_score",
+      "verification": "verified"
+    },
+    {
+      "id": "code-accuracy-call",
+      "artifactType": "code",
+      "fileName": "student-analysis.py",
+      "lineStart": 23,
+      "lineEnd": 24,
+      "excerpt": "macro_f1 = accuracy_score(y_test, predictions)\nprint(f\"LeafLens macro-F1: {macro_f1:.2f}\")",
+      "verification": "verified"
+    },
+    {
+      "id": "paper-augmentation-split",
+      "artifactType": "manuscript",
+      "fileName": "student-paper.md",
+      "section": "Dataset and split",
+      "lineStart": 13,
+      "lineEnd": 13,
+      "excerpt": "To make the model robust to camera orientation, we created one 90-degree rotated copy of every photograph. We then randomly assigned 80% of the resulting images to training and 20% to testing.",
+      "verification": "verified"
+    },
+    {
+      "id": "code-augmentation-before-split",
+      "artifactType": "code",
+      "fileName": "student-analysis.py",
+      "lineStart": 8,
+      "lineEnd": 18,
+      "excerpt": "images, labels = load_leaf_photos(\"data/leaves\")\nrotated_images = np.stack([np.rot90(image) for image in images])\nimages = np.concatenate([images, rotated_images])\nlabels = np.concatenate([labels, labels])\n\nX_train, X_test, y_train, y_test = train_test_split(\n    images,\n    labels,\n    test_size=0.20,\n    shuffle=True,\n)",
+      "verification": "verified"
+    },
+    {
+      "id": "paper-unseen-leaves-claim",
+      "artifactType": "manuscript",
+      "fileName": "student-paper.md",
+      "section": "Evaluation",
+      "lineStart": 23,
+      "lineEnd": 23,
+      "excerpt": "These results show that LeafLens is better than both simpler alternatives and generalizes to previously unseen leaves.",
+      "verification": "verified"
+    },
+    {
+      "id": "paper-baseline-claim",
+      "artifactType": "manuscript",
+      "fileName": "student-paper.md",
+      "section": "Abstract",
+      "lineStart": 7,
+      "lineEnd": 7,
+      "excerpt": "LeafLens classifies six common tree species from 480 phone photographs. Our model achieved a macro-F1 score of 0.91 on the held-out test set and outperformed both a majority-class baseline and a color-histogram logistic-regression baseline.",
+      "verification": "verified"
+    },
+    {
+      "id": "code-model-only",
+      "artifactType": "code",
+      "fileName": "student-analysis.py",
+      "lineStart": 20,
+      "lineEnd": 24,
+      "excerpt": "model = train_leafnet(X_train, y_train, epochs=20)\npredictions = model.predict(X_test).argmax(axis=1)\n\nmacro_f1 = accuracy_score(y_test, predictions)\nprint(f\"LeafLens macro-F1: {macro_f1:.2f}\")",
+      "verification": "verified",
+      "deterministicCheck": "No baseline fit, prediction, or score call exists anywhere in student-analysis.py."
+    },
+    {
+      "id": "paper-reproducibility-gap",
+      "artifactType": "manuscript",
+      "fileName": "student-paper.md",
+      "section": "Reproducibility",
+      "lineStart": 27,
+      "lineEnd": 27,
+      "excerpt": "The final notebook was run on a school laptop. The exact random seed, package versions, and train/test image IDs were not saved.",
+      "verification": "verified"
+    },
+    {
+      "id": "code-unseeded-split",
+      "artifactType": "code",
+      "fileName": "student-analysis.py",
+      "lineStart": 13,
+      "lineEnd": 18,
+      "excerpt": "X_train, X_test, y_train, y_test = train_test_split(\n    images,\n    labels,\n    test_size=0.20,\n    shuffle=True,\n)",
+      "verification": "verified",
+      "deterministicCheck": "The train_test_split call has no random_state argument."
+    }
+  ],
+  "findings": [
+    {
+      "id": "leaflens-metric-mismatch",
+      "category": "metric-mismatch",
+      "status": "confirmed",
+      "severity": "high",
+      "concept": "Metric validity",
+      "title": "The paper reports macro-F1, but the code calculates accuracy",
+      "claim": "LeafLens achieved macro-F1 of 0.91.",
+      "evidenceSummary": "The analysis imports and calls accuracy_score, then labels that value as macro-F1.",
+      "codeSummary": "accuracy_score and macro-averaged F1 are different metrics; the current variable name does not change the calculation.",
+      "anchorIds": [
+        "paper-metric-claim",
+        "code-accuracy-import",
+        "code-accuracy-call"
+      ],
+      "sourceIds": [
+        "source-manuscript",
+        "source-code",
+        "source-sklearn-accuracy",
+        "source-sklearn-f1"
+      ],
+      "whyItMatters": "Accuracy can hide weak performance on less common species, while macro-F1 gives each species equal weight. The reported number therefore does not support the metric claim.",
+      "coach": {
+        "progressiveHint": "Trace the function that produces the number, not the variable name used to print it.",
+        "evidenceBackedCorrection": "Calculate f1_score(y_test, predictions, average=\"macro\"), rerun the test, and replace every reported score with the resulting value.",
+        "masteredConcepts": [
+          "metric selection",
+          "class imbalance",
+          "claim-code consistency"
+        ]
+      }
+    },
+    {
+      "id": "leaflens-lineage-leakage",
+      "category": "data-leakage",
+      "status": "confirmed",
+      "severity": "high",
+      "concept": "Independent evaluation",
+      "title": "Augmented copies can cross from training into testing",
+      "claim": "The score measures generalization to previously unseen leaves.",
+      "evidenceSummary": "Every image is rotated before the combined pool is randomly split, with no physical-leaf grouping.",
+      "codeSummary": "An original image and its rotated derivative can be assigned to opposite sides of the split, and multiple photographs of one physical leaf can also cross the boundary.",
+      "anchorIds": [
+        "paper-augmentation-split",
+        "paper-unseen-leaves-claim",
+        "code-augmentation-before-split"
+      ],
+      "sourceIds": [
+        "source-manuscript",
+        "source-code",
+        "source-sklearn-leakage",
+        "source-sklearn-groups"
+      ],
+      "whyItMatters": "The test set is no longer independent of training data, so the score can reward recognition of the same source leaf instead of generalization to a new leaf.",
+      "coach": {
+        "progressiveHint": "Ask what real-world object must remain entirely on one side of the train/test boundary.",
+        "evidenceBackedCorrection": "Split by physical leaf ID first, keep all photos from one leaf in one partition, and create augmented images only from the training partition.",
+        "masteredConcepts": [
+          "data lineage",
+          "grouped splitting",
+          "test-set independence"
+        ]
+      }
+    },
+    {
+      "id": "leaflens-baseline-unsupported",
+      "category": "unsupported-baseline",
+      "status": "confirmed",
+      "severity": "high",
+      "concept": "Comparative claims",
+      "title": "The superiority claim has no implemented comparison",
+      "claim": "LeafLens outperformed majority-class and logistic-regression baselines.",
+      "evidenceSummary": "The manuscript gives two baseline scores, but the submitted code only trains and scores LeafLens.",
+      "codeSummary": "A deterministic scan finds no baseline model, majority predictor, baseline prediction, or baseline metric call in the analysis file.",
+      "anchorIds": [
+        "paper-baseline-claim",
+        "paper-metric-claim",
+        "code-model-only"
+      ],
+      "sourceIds": [
+        "source-manuscript",
+        "source-code",
+        "source-sklearn-evaluation"
+      ],
+      "whyItMatters": "Without a reproducible comparison under the same split and metric, a reader cannot check whether the claimed improvement exists.",
+      "coach": {
+        "progressiveHint": "Look for the training, prediction, and scoring steps for each named comparison model.",
+        "evidenceBackedCorrection": "Implement both baselines, evaluate all models on the identical held-out leaf IDs with macro-F1, and narrow the claim to the comparisons actually run.",
+        "masteredConcepts": [
+          "baseline implementation",
+          "controlled comparison",
+          "claim scope"
+        ]
+      }
+    },
+    {
+      "id": "leaflens-reproducibility",
+      "category": "reproducibility",
+      "status": "concern",
+      "severity": "medium",
+      "concept": "Reproducible methods",
+      "title": "The exact split and environment cannot be reproduced",
+      "claim": "The reported test result can be independently checked.",
+      "evidenceSummary": "The paper says the seed, package versions, and image-ID split were not saved.",
+      "codeSummary": "train_test_split is called without random_state, so a new run can select a different test set.",
+      "anchorIds": [
+        "paper-reproducibility-gap",
+        "code-unseeded-split"
+      ],
+      "sourceIds": [
+        "source-manuscript",
+        "source-code",
+        "source-sklearn-randomness"
+      ],
+      "whyItMatters": "A different random split may produce a different score, and a mentor cannot reconstruct which images supported the claim.",
+      "coach": {
+        "progressiveHint": "List the information another student would need to recreate exactly the same train/test result.",
+        "evidenceBackedCorrection": "Set and record the random seed, save the leaf-ID split manifest, pin package versions, and document the command used to reproduce the scores.",
+        "masteredConcepts": [
+          "random seeds",
+          "environment capture",
+          "split manifests"
+        ]
+      }
+    }
+  ],
+  "provenance": {
+    "resolvedModel": null,
+    "responseId": null,
+    "promptVersion": "leaflens-fixture-prompt-v1",
+    "schemaVersion": "second-lab.review.v1",
+    "preparedOn": "2026-07-14",
+    "generatedAt": null,
+    "inputHashes": {},
+    "usage": null,
+    "latencyMs": 0,
+    "cleanup": {
+      "status": "not-applicable",
+      "details": "Prepared fixture files are public sample data and were not uploaded to OpenAI."
+    },
+    "disclosure": "This is a deterministic cached demonstration, not a live model review. External links were curated into the fixture and are not represented as native web-search results."
+  }
+}

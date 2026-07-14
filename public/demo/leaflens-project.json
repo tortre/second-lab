@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "second-lab.prepared-project.v1",
+  "fixtureVersion": "leaflens-2026-07-14-v1",
+  "title": "LeafLens: Classifying Schoolyard Leaves with a Small Vision Model",
+  "preparedAt": "2026-07-14T12:00:00.000Z",
+  "manuscript": {
+    "fileName": "student-paper.md",
+    "content": "# LeafLens: Classifying Schoolyard Leaves with a Small Vision Model\n\n**Student research draft — prepared demonstration**\n\n## Abstract\n\nLeafLens classifies six common tree species from 480 phone photographs. Our model achieved a macro-F1 score of 0.91 on the held-out test set and outperformed both a majority-class baseline and a color-histogram logistic-regression baseline.\n\n## Dataset and split\n\nWe photographed 80 individual leaves, with one leaf placed on a white sheet in each image session. Six photographs were taken of each physical leaf from slightly different angles.\n\nTo make the model robust to camera orientation, we created one 90-degree rotated copy of every photograph. We then randomly assigned 80% of the resulting images to training and 20% to testing.\n\n## Model\n\nWe trained a small convolutional network for 20 epochs. Images were resized to 128 × 128 pixels and normalized to the range 0–1.\n\n## Evaluation\n\nWe used macro-F1 because the six species were not perfectly balanced. The final macro-F1 was 0.91, compared with 0.18 for the majority-class baseline and 0.74 for the color-histogram logistic-regression baseline.\n\nThese results show that LeafLens is better than both simpler alternatives and generalizes to previously unseen leaves.\n\n## Reproducibility\n\nThe final notebook was run on a school laptop. The exact random seed, package versions, and train/test image IDs were not saved.\n\n## Conclusion\n\nLeafLens could help students identify local trees from a phone photograph. Future work will add more schools and photograph leaves under different lighting conditions.\n"
+  },
+  "code": {
+    "fileName": "student-analysis.py",
+    "content": "import numpy as np\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\nfrom leaflens_model import load_leaf_photos, train_leafnet\n\n\nimages, labels = load_leaf_photos(\"data/leaves\")\nrotated_images = np.stack([np.rot90(image) for image in images])\nimages = np.concatenate([images, rotated_images])\nlabels = np.concatenate([labels, labels])\n\nX_train, X_test, y_train, y_test = train_test_split(\n    images,\n    labels,\n    test_size=0.20,\n    shuffle=True,\n)\n\nmodel = train_leafnet(X_train, y_train, epochs=20)\npredictions = model.predict(X_test).argmax(axis=1)\n\nmacro_f1 = accuracy_score(y_test, predictions)\nprint(f\"LeafLens macro-F1: {macro_f1:.2f}\")\n"
+  }
+}

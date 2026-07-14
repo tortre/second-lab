@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Second Lab — Agentic Paper Review",
-  description: "Review public research papers against code, data methodology, and authoritative web sources.",
+  title: "Second Lab — Research Methods Coach",
+  description: "An AI research-methods coach that teaches student scientists to defend every claim with code, methodology, and literature evidence.",
 };
 
 export default function RootLayout({
@@ -27,7 +28,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col"><TooltipProvider>{children}</TooltipProvider></body>
     </html>
   );
 }

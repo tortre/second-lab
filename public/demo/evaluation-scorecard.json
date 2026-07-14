@@ -1,0 +1,103 @@
+{
+  "schemaVersion": "second-lab.evaluation-scorecard.v1",
+  "evaluationMode": "cached-fixture-validation",
+  "liveModel": false,
+  "publishedOn": "2026-07-14",
+  "caseCount": 6,
+  "seededFindingCount": 8,
+  "truePositives": 8,
+  "falsePositives": 0,
+  "falseNegatives": 0,
+  "seededCategoryRecall": 1,
+  "unsupportedFindingRate": 0,
+  "flagshipDefectsDetected": 3,
+  "flagshipDefectsExpected": 3,
+  "cleanControlUnsupportedHighSeverityFindings": 0,
+  "citationValidity": null,
+  "latencyMs": null,
+  "tokens": null,
+  "estimatedCostUsd": null,
+  "outcomes": [
+    {
+      "caseId": "metric-mismatch",
+      "expectedCategories": [
+        "metric-mismatch"
+      ],
+      "detectedCategories": [
+        "metric-mismatch"
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "unsupportedHighSeverityFindings": 0
+    },
+    {
+      "caseId": "data-leakage",
+      "expectedCategories": [
+        "data-leakage"
+      ],
+      "detectedCategories": [
+        "data-leakage"
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "unsupportedHighSeverityFindings": 0
+    },
+    {
+      "caseId": "unsupported-baseline",
+      "expectedCategories": [
+        "unsupported-baseline"
+      ],
+      "detectedCategories": [
+        "unsupported-baseline"
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "unsupportedHighSeverityFindings": 0
+    },
+    {
+      "caseId": "reproducibility",
+      "expectedCategories": [
+        "reproducibility"
+      ],
+      "detectedCategories": [
+        "reproducibility"
+      ],
+      "truePositives": 1,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "unsupportedHighSeverityFindings": 0
+    },
+    {
+      "caseId": "mixed-defects",
+      "expectedCategories": [
+        "metric-mismatch",
+        "data-leakage",
+        "unsupported-baseline",
+        "reproducibility"
+      ],
+      "detectedCategories": [
+        "metric-mismatch",
+        "data-leakage",
+        "unsupported-baseline",
+        "reproducibility"
+      ],
+      "truePositives": 4,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "unsupportedHighSeverityFindings": 0
+    },
+    {
+      "caseId": "clean-control",
+      "expectedCategories": [],
+      "detectedCategories": [],
+      "truePositives": 0,
+      "falsePositives": 0,
+      "falseNegatives": 0,
+      "unsupportedHighSeverityFindings": 0
+    }
+  ],
+  "disclosure": "This scorecard validates the seeded fixture labels with deterministic checks. It is not a GPT-5.6 model evaluation and includes no model latency, token, or cost measurements."
+}

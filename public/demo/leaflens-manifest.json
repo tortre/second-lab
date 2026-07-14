@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "second-lab.demo-manifest.v1",
+  "fixtureVersion": "leaflens-2026-07-14-v1",
+  "preparedAt": "2026-07-14T12:00:00.000Z",
+  "deterministic": true,
+  "artifacts": [
+    {
+      "relativePath": "public/papers/leaflens/student-paper.md",
+      "fileName": "student-paper.md",
+      "bytes": 1601,
+      "sha256": "13a396840214f99bed1ae4440b311fbcf4236d05dd6fca3662af99d9adad9181"
+    },
+    {
+      "relativePath": "public/papers/leaflens/student-analysis.py",
+      "fileName": "student-analysis.py",
+      "bytes": 696,
+      "sha256": "cbe5b56e4f74bc95e557e5b1f2d4800a0e8f225f59925b84bf57c9237374424c"
+    },
+    {
+      "relativePath": "public/papers/leaflens/clean-control-paper.md",
+      "fileName": "clean-control-paper.md",
+      "bytes": 1758,
+      "sha256": "91aaccbf3c1b51a341958fa830088737bfb5f27e3aa589d135dff2f4447e2cf9"
+    },
+    {
+      "relativePath": "public/papers/leaflens/clean-control-analysis.py",
+      "fileName": "clean-control-analysis.py",
+      "bytes": 1652,
+      "sha256": "9ae6da926bef6c387bd5c7c22270e69ab59e097ec18013a603c1e8ae34a5924a"
+    }
+  ],
+  "generatedFiles": [
+    "leaflens-review.json",
+    "leaflens-project.json",
+    "evaluation-cases.json",
+    "evaluation-scorecard.json",
+    "leaflens-manifest.json"
+  ],
+  "disclosure": "Generated review and evaluation outputs are cached fixture validation, not a live GPT-5.6 run."
+}

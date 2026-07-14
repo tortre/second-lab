@@ -1,14 +1,27 @@
 "use client";
 
+import { MessageResponse } from "@/components/ai-elements/message";
+import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
+import { createLearningReceipt, learningReceiptMarkdown, type AttemptsByFinding } from "@/lib/learning-receipt";
+import { readReviewStream } from "@/lib/ndjson";
 import {
+  coachResultSchema,
+  type CoachAttempt,
+  type EvidenceFinding,
+  type EvidenceSource,
+  type ReviewResult,
+  type ReviewStreamEvent,
+} from "@/lib/review-types";
+import {
+  ArrowRight,
   BookOpen,
   Bot,
-  Braces,
+  BrainCircuit,
   Check,
+  CheckCircle2,
   ChevronRight,
   CircleAlert,
-  CircleCheck,
-  CircleDashed,
+  CircleDot,
   Download,
   ExternalLink,
   FileCode2,
@@ -16,77 +29,27 @@ import {
   FlaskConical,
   GitBranch,
   Globe2,
-  Link2,
+  GraduationCap,
+  Lightbulb,
+  LoaderCircle,
+  LockKeyhole,
   Play,
   RotateCcw,
   Search,
   ShieldCheck,
   Sparkles,
+  Square,
   Upload,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-type PreparedPayload = {
-  kind: "prepared";
-  audit: {
-    datasetFingerprint: string;
-    paperCount: number;
-    receiptStatus: string;
-    papers: Array<{ paperId: "attention" | "bert"; title: string; sourceUrl: string; reportedMetric: string; findingCount: number; status: "needs review" | "consistent" }>;
-    findings: Array<{ id: string; paperId: "attention" | "bert"; label: string; status: "pass" | "warning" | "fail"; detail: string }>;
-  };
-  analysis: {
-    auditSummary: string;
-    studentExplanation: string;
-    correctionTitle: string;
-    correctionRationale: string;
-    issues: Array<{ paperId: "attention" | "bert"; checkId: string; title: string; severity: "high" | "medium" | "low"; paperAnchor: string; evidence: string; correction: string }>;
-    mode: "gpt-5.6" | "demo-fallback" | "fallback-after-error";
-  };
-  receipt: string;
-};
+type Screen = "landing" | "running" | "results";
+type EntryMode = "prepared" | "upload";
+type Health = { liveReview: boolean; multiAgent: boolean; accessRequired: boolean };
+type Draft = { diagnosis: string; revisionPlan: string };
 
-type ManuscriptPayload = {
-  kind: "manuscript";
-  review: {
-    mode: "gpt-5.6-files-web";
-    manuscript: { title: string; authors: string[]; researchArea: string; centralClaims: string[]; claimedContributions: string[] };
-    reviewSummary: string;
-    researchTrace: Array<{ stage: "manuscript" | "code" | "literature" | "methods" | "evaluation" | "synthesis"; detail: string }>;
-    checks: Array<{ label: string; rationale: string; status: "passed" | "review" | "unverified" }>;
-    findings: Array<{ title: string; category: string; severity: "high" | "medium" | "low"; confidence: number; evidence: string; manuscriptAnchor: string; codeAnchor: string; literatureContext: string; correction: string; sourceUrls: string[] }>;
-    relatedWork: Array<{ title: string; authors: string[]; year: number; url: string; relevance: string; relationship: "supports" | "overlaps" | "contradicts" | "method-precedent" | "evaluation-precedent" }>;
-    sources: Array<{ title: string; url: string; role: "prior-work" | "dataset" | "benchmark" | "method" | "evaluation" | "documentation" }>;
-    verdict: "ready" | "revisions-needed" | "major-review" | "insufficient-evidence";
-    limitations: string[];
-  };
-  receipt: string;
-};
-
-type ReviewPayload = PreparedPayload | ManuscriptPayload;
-type RunState = "ready" | "running" | "review" | "receipt";
-type ReviewMode = "manuscript" | "prepared";
-
-const attentionCode = `def scaled_dot_product_attention(query, key, value):
-    d_model = query.shape[-1]
-    scores = query @ key.transpose(-2, -1) / math.sqrt(d_model)
-    return scores.softmax(dim=-1) @ value`;
-
-const bertCode = `def prepare_mlm(tokens):
-    mask_rate = 0.20
-    selected = sample_positions(tokens, rate=mask_rate)
-    if random.random() < 0.80:
-        tokens[position] = "[MASK]"`;
-
-function ArtifactCard({ icon, name, meta, href, active = false }: { icon: React.ReactNode; name: string; meta: string; href: string; active?: boolean }) {
-  return <a className={`artifact-card ${active ? "artifact-card-active" : ""}`} href={href} download><span className="artifact-icon">{icon}</span><span><strong>{name}</strong><small>{meta}</small></span>{active ? <Check size={14} /> : <ChevronRight size={14} />}</a>;
-}
-
-function CheckRow({ label, detail, status }: { label: string; detail: string; status: "pass" | "warning" | "fail" }) {
-  const Icon = status === "fail" ? CircleAlert : CircleCheck;
-  return <div className={`check-row check-${status}`}><Icon size={17} /><span><strong>{label}</strong><small>{detail}</small></span><b>{status === "fail" ? "Review" : "Passed"}</b></div>;
-}
+const emptyDraft: Draft = { diagnosis: "", revisionPlan: "" };
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -97,215 +60,468 @@ function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
 }
 
+function displayAgent(agent: string) {
+  return agent.split("/").filter(Boolean).at(-1)?.replaceAll("_", " ") ?? "reviewer";
+}
+
+function statusLabel(status: EvidenceFinding["status"] | CoachAttempt["status"]) {
+  return status.replace("not-yet", "not yet");
+}
+
+function ModelCopy({ children, links = [] }: { children: string; links?: string[] }) {
+  return (
+    <MessageResponse
+      className="model-copy"
+      urlTransform={(url) => links.includes(url) ? url : null}
+    >
+      {children}
+    </MessageResponse>
+  );
+}
+
+function downloadText(name: string, text: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/markdown;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export function SecondLabWorkspace() {
-  const [runState, setRunState] = useState<RunState>("ready");
-  const [reviewMode, setReviewMode] = useState<ReviewMode>("manuscript");
-  const [auditStage, setAuditStage] = useState("Reading the manuscript");
-  const [payload, setPayload] = useState<ReviewPayload | null>(null);
+  const [screen, setScreen] = useState<Screen>("landing");
+  const [entryMode, setEntryMode] = useState<EntryMode>("prepared");
+  const [review, setReview] = useState<ReviewResult | null>(null);
+  const [events, setEvents] = useState<ReviewStreamEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [cachedDemoUrl, setCachedDemoUrl] = useState<string | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
   const [manuscript, setManuscript] = useState<File | null>(null);
   const [codeFiles, setCodeFiles] = useState<File[]>([]);
   const [context, setContext] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [accessCode, setAccessCode] = useState("");
+  const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [attempts, setAttempts] = useState<AttemptsByFinding>({});
+  const [coachBusy, setCoachBusy] = useState(false);
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
+  const abortRef = useRef<AbortController | null>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const autoStarted = useRef(false);
 
-  const issueCount = payload?.kind === "manuscript" ? payload.review.findings.length : payload?.analysis.issues.length;
+  useEffect(() => {
+    fetch("/api/health", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((value: Health) => setHealth(value))
+      .catch(() => setHealth({ liveReview: false, multiAgent: false, accessRequired: false }));
+  }, []);
 
-  async function runAudit() {
-    if (reviewMode === "manuscript" && !manuscript) {
-      setError("Add your manuscript before starting the review.");
-      return;
+  useEffect(() => {
+    if (autoStarted.current || typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("demo") === "leaflens") {
+      autoStarted.current = true;
+      document.getElementById("try-student-study")?.click();
     }
+  }, []);
 
-    setRunState("running");
-    setPayload(null);
+  const selectedFinding = review?.findings.find((finding) => finding.id === selectedFindingId) ?? review?.findings[0] ?? null;
+  const sourceMap = useMemo(() => new Map(review?.sources.map((source) => [source.id, source]) ?? []), [review]);
+  const sourceLinks = review?.sources.map((source) => source.url) ?? [];
+  const masteryCount = review?.findings.filter((finding) => attempts[finding.id]?.at(-1)?.status === "mastered").length ?? 0;
+
+  function reset() {
+    abortRef.current?.abort();
+    setScreen("landing");
+    setReview(null);
+    setEvents([]);
     setError(null);
-    setAuditStage(reviewMode === "manuscript" ? "Reading the manuscript" : "Reading the source package");
-    const sourceTimer = window.setTimeout(() => setAuditStage(reviewMode === "manuscript" ? "Inspecting the implementation" : "Comparing paper anchors with implementation"), 650);
-    const webTimer = window.setTimeout(() => setAuditStage(reviewMode === "manuscript" ? "Researching prior literature" : "Explaining the evidence"), 1300);
-    const synthesisTimer = window.setTimeout(() => setAuditStage("Forming source-grounded checks"), 2200);
-
-    try {
-      let response: Response;
-      if (reviewMode === "prepared") {
-        response = await fetch("/api/audit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "prepared" }),
-        });
-      } else {
-        const formData = new FormData();
-        formData.append("manuscript", manuscript as File);
-        codeFiles.forEach((file) => formData.append("code", file));
-        if (context.trim()) formData.append("context", context.trim());
-        response = await fetch("/api/audit", { method: "POST", body: formData });
-      }
-
-      const result = (await response.json()) as ReviewPayload | { error?: string };
-      if (!response.ok || !("kind" in result)) throw new Error("error" in result && result.error ? result.error : "The review service did not return a result.");
-      setPayload(result);
-      setRunState("review");
-    } catch (cause) {
-      setRunState("ready");
-      setError(cause instanceof Error ? cause.message : "The review could not be completed.");
-    } finally {
-      window.clearTimeout(sourceTimer);
-      window.clearTimeout(webTimer);
-      window.clearTimeout(synthesisTimer);
-    }
-  }
-
-  function resetPackage() {
-    setPayload(null);
-    setError(null);
-    setRunState("ready");
-  }
-
-  function chooseMode(mode: ReviewMode) {
-    setReviewMode(mode);
-    setError(null);
+    setCachedDemoUrl(null);
+    setAttempts({});
+    setDrafts({});
+    setRevealed(new Set());
+    setSelectedFindingId(null);
   }
 
   function addCodeFiles(files: FileList | null) {
     if (!files) return;
     setCodeFiles((current) => {
-      const byKey = new Map(current.map((file) => [fileKey(file), file]));
-      Array.from(files).forEach((file) => byKey.set(fileKey(file), file));
-      return Array.from(byKey.values()).slice(0, 12);
+      const unique = new Map(current.map((file) => [fileKey(file), file]));
+      Array.from(files).forEach((file) => unique.set(fileKey(file), file));
+      return [...unique.values()].slice(0, 12);
     });
     if (codeInputRef.current) codeInputRef.current.value = "";
   }
 
-  function downloadReceipt() {
-    if (!payload) return;
-    const file = new Blob([payload.receipt], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(file);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = payload.kind === "manuscript" ? "second-lab-manuscript-review.md" : "second-lab-example-review.md";
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  async function unlockLiveReview() {
+    if (!health?.accessRequired) return;
+    if (!accessCode.trim()) throw new Error("Enter the judge access code for live review.");
+    const response = await fetch("/api/access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: accessCode.trim() }),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) throw new Error(result.error || "The access code was not accepted.");
+  }
+
+  async function startReview(mode: EntryMode) {
+    if (mode === "upload" && (!manuscript || codeFiles.length === 0)) {
+      setEntryMode("upload");
+      setError(!manuscript
+        ? "Add your manuscript before starting the live review."
+        : "Add at least one code file so the review can map claims to the implementation.");
+      document.getElementById("project-upload")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setEntryMode(mode);
+    setScreen("running");
+    setReview(null);
+    setEvents([]);
+    setError(null);
+    setCachedDemoUrl(null);
+    try {
+      const runPreparedLive = mode === "prepared"
+        && Boolean(health?.liveReview)
+        && (!health?.accessRequired || Boolean(accessCode.trim()));
+      if (mode === "upload" || (runPreparedLive && health?.accessRequired)) {
+        await unlockLiveReview();
+      }
+      let response: Response;
+      if (mode === "prepared") {
+        if (runPreparedLive) {
+          const form = new FormData();
+          form.append("prepared", "leaflens");
+          response = await fetch("/api/review", { method: "POST", body: form, signal: controller.signal });
+        } else {
+          response = await fetch("/api/review", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "prepared" }),
+            signal: controller.signal,
+          });
+        }
+      } else {
+        const form = new FormData();
+        form.append("manuscript", manuscript!);
+        codeFiles.forEach((file) => form.append("code", file));
+        if (context.trim()) form.append("context", context.trim());
+        response = await fetch("/api/review", { method: "POST", body: form, signal: controller.signal });
+      }
+      let completed: ReviewResult | null = null;
+      let failure: Extract<ReviewStreamEvent, { event: "review.failed" }> | null = null;
+      await readReviewStream(response, (event) => {
+        setEvents((current) => [...current, event]);
+        if (event.event === "review.completed") completed = event.review;
+        if (event.event === "review.failed") failure = event;
+      }, controller.signal);
+      if (failure) {
+        const failedEvent = failure as Extract<ReviewStreamEvent, { event: "review.failed" }>;
+        setCachedDemoUrl(failedEvent.cachedDemoUrl ?? null);
+        throw new Error(failedEvent.message);
+      }
+      if (!completed) throw new Error("The review ended without a result.");
+      const finalReview = completed as ReviewResult;
+      setReview(finalReview);
+      setSelectedFindingId(finalReview.findings[0]?.id ?? null);
+      setScreen("results");
+    } catch (cause) {
+      if (controller.signal.aborted) {
+        setError("Review cancelled. No fallback was started.");
+      } else {
+        setError(cause instanceof Error ? cause.message : "The review could not be completed.");
+      }
+      setScreen("landing");
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+    }
+  }
+
+  async function submitCoach(finding: EvidenceFinding) {
+    if (!review) return;
+    const draft = drafts[finding.id] ?? emptyDraft;
+    if (draft.diagnosis.trim().length < 8 || draft.revisionPlan.trim().length < 8) {
+      setError("Answer both coaching questions before submitting.");
+      return;
+    }
+    setCoachBusy(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/coach", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finding,
+          priorAttempts: attempts[finding.id] ?? [],
+          diagnosis: draft.diagnosis,
+          revisionPlan: draft.revisionPlan,
+          reviewExecutionMode: review.provenance.executionMode,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "The coach could not assess this attempt.");
+      const result = coachResultSchema.parse(body);
+      const attempt: CoachAttempt = {
+        attemptNumber: Math.min(2, (attempts[finding.id]?.length ?? 0) + 1) as 1 | 2,
+        diagnosis: draft.diagnosis.trim(),
+        revisionPlan: draft.revisionPlan.trim(),
+        status: result.status,
+        feedback: result.feedback,
+        nextHint: result.nextHint,
+        masteredConcepts: result.masteredConcepts,
+        submittedAt: new Date().toISOString(),
+      };
+      setAttempts((current) => ({ ...current, [finding.id]: [...(current[finding.id] ?? []), attempt].slice(0, 2) }));
+      if (result.status === "mastered") setRevealed((current) => new Set(current).add(finding.id));
+      if (result.nextHint) {
+        setEvents((current) => [...current, { event: "agent.completed", agent: "/coach", detail: `Hint: ${result.nextHint}` }]);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The coach could not assess this attempt.");
+    } finally {
+      setCoachBusy(false);
+    }
+  }
+
+  function exportReceipt() {
+    if (!review) return;
+    const receipt = createLearningReceipt(review, attempts);
+    downloadText("second-lab-mastery-receipt.md", learningReceiptMarkdown(receipt));
   }
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div className="brand-lockup"><span className="brand-mark"><FlaskConical size={18} /></span><span>Second Lab</span><em>pre-submission research review</em></div>
-        <div className="topbar-actions"><span className="secure-pill"><ShieldCheck size={14} /> Evidence-grounded</span><button className="icon-button" onClick={resetPackage} aria-label="Reset review" title="Reset review"><RotateCcw size={16} /></button></div>
+        <button className="brand-lockup brand-button" onClick={reset} aria-label="Return to Second Lab home">
+          <span className="brand-mark"><FlaskConical size={18} /></span>
+          <span>Second Lab</span>
+          <em>research methods coach</em>
+        </button>
+        <div className="topbar-actions">
+          <span className="secure-pill"><ShieldCheck size={14} /> Evidence before answers</span>
+          <button className="icon-button" onClick={reset} aria-label="Reset project"><RotateCcw size={16} /></button>
+        </div>
       </header>
 
       <div className="workspace-grid">
         <aside className="sidebar">
-          <div className="sidebar-label">Review modes</div>
-          <button className={`mode-card ${reviewMode === "manuscript" ? "mode-card-active" : ""}`} onClick={() => chooseMode("manuscript")}><span><FileText size={16} /></span><div><strong>Your manuscript</strong><small>Draft + code + literature</small></div>{reviewMode === "manuscript" && <Check size={14} />}</button>
-          <button className={`mode-card ${reviewMode === "prepared" ? "mode-card-active" : ""}`} onClick={() => chooseMode("prepared")}><span><BookOpen size={16} /></span><div><strong>Prepared example</strong><small>Two inspectable fixtures</small></div>{reviewMode === "prepared" && <Check size={14} />}</button>
+          <span className="sidebar-label">Learning path</span>
+          <div className="path-list">
+            <PathStep icon={<FileText size={15} />} label="Map the claim" detail="Paper ↔ code ↔ sources" active={screen !== "landing"} />
+            <PathStep icon={<BrainCircuit size={15} />} label="Defend it" detail="Explain why it matters" active={screen === "results"} />
+            <PathStep icon={<GitBranch size={15} />} label="Revise it" detail="Propose a checkable fix" active={masteryCount > 0} />
+            <PathStep icon={<Download size={15} />} label="Hand it off" detail="Mentor-ready receipt" active={Object.keys(attempts).length > 0} />
+          </div>
 
-          <div className="sidebar-label sidebar-section">Example artifacts</div>
+          <span className="sidebar-label sidebar-section">LeafLens package</span>
           <div className="artifact-list">
-            <ArtifactCard icon={<FileCode2 size={17} />} name="attention.py" meta="Transformer · 2017" href="/papers/attention-is-all-you-need/implementation.py" active={reviewMode === "prepared"} />
-            <ArtifactCard icon={<FileCode2 size={17} />} name="bert.py" meta="BERT · 2019" href="/papers/bert/implementation.py" />
-            <ArtifactCard icon={<Braces size={17} />} name="source-notes.md" meta="2 source anchors" href="/papers/source-notes.md" />
+            <Artifact href="/papers/leaflens/student-paper.md" icon={<FileText size={16} />} name="student-paper.md" detail="Synthetic study" />
+            <Artifact href="/papers/leaflens/student-analysis.py" icon={<FileCode2 size={16} />} name="student-analysis.py" detail="Inspectable code" />
+            <Artifact href="/papers/leaflens/clean-control-paper.md" icon={<CheckCircle2 size={16} />} name="clean control" detail="Evaluation variant" />
           </div>
 
-          <div className="sidebar-label sidebar-section">Agent trail</div>
-          <div className="trail">
-            <div className={runState === "ready" ? "trail-item" : "trail-item trail-done"}><CircleDashed size={15} /><span>Read manuscript<small>{runState === "ready" ? "Waiting" : "Complete"}</small></span></div>
-            <div className={runState === "ready" ? "trail-item" : "trail-item trail-done"}><CircleDashed size={15} /><span>Inspect code<small>{runState === "ready" ? "Waiting" : "Complete"}</small></span></div>
-            <div className={runState === "ready" ? "trail-item" : "trail-item trail-done"}><CircleDashed size={15} /><span>Research literature<small>{runState === "ready" ? "Waiting" : "Complete"}</small></span></div>
-            <div className={runState === "review" || runState === "receipt" ? "trail-item trail-alert" : "trail-item"}><CircleDashed size={15} /><span>Form checks<small>{issueCount === undefined ? "Waiting" : `${issueCount} findings`}</small></span></div>
+          <div className="privacy-note">
+            <ShieldCheck size={16} />
+            <p><strong>Student-safe boundary</strong>No code execution, paper rewriting, accounts, or app database. Live files use a one-hour expiry backstop.</p>
           </div>
-
-          <div className="local-note"><ShieldCheck size={16} /><span><strong>Pre-submission review</strong>Temporary API files are deleted after each attempt. Findings remain advisory.</span></div>
         </aside>
 
         <section className="main-panel">
-          {runState === "ready" && (
-            <div className="ready-view">
-              <div className="eyebrow"><span className="pulse-dot" /> {reviewMode === "manuscript" ? "New manuscript review" : "Prepared example ready"}</div>
-              <div className="claim-card">
-                <span className="claim-kicker">Research workspace</span>
-                <h1>{reviewMode === "manuscript" ? <>Review your draft before <mark>peer review does.</mark></> : <>Inspect a complete review on <mark>prepared examples.</mark></>}</h1>
-                <div className="claim-source">{reviewMode === "manuscript" ? <><Bot size={15} /> Manuscript + implementation + prior literature</> : <><BookOpen size={15} /> Attention Is All You Need + BERT <span>·</span> local evidence</>}</div>
+          {screen === "landing" && (
+            <div className="landing-view">
+              <section className="hero">
+                <div className="eyebrow"><GraduationCap size={15} /> Built for student scientists</div>
+                <h1>Learn to defend your research <mark>before someone else questions it.</mark></h1>
+                <p>Second Lab maps every important claim to the manuscript, implementation, and trustworthy methods evidence—then asks you to explain the problem and design the revision.</p>
+                <div className="hero-actions">
+                  <button id="try-student-study" className="primary-button primary-large" onClick={() => void startReview("prepared")}>
+                    <Play size={17} fill="currentColor" /> Try a student study
+                  </button>
+                  <button className="secondary-button secondary-large" onClick={() => {
+                    setEntryMode("upload");
+                    document.getElementById("project-upload")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}>
+                    <Upload size={17} /> Review my project
+                  </button>
+                </div>
+                {health?.liveReview && health.accessRequired && <label className="hero-access"><span><LockKeyhole size={14} /> Judge code <em>optional for cached demo</em></span><input type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" placeholder="Unlock the live three-specialist LeafLens run" /></label>}
+                <div className="hero-proof">
+                  <span><Check size={14} /> Correction hidden first</span>
+                  <span><Check size={14} /> Exact evidence anchors</span>
+                  <span><Check size={14} /> No confidence theater</span>
+                </div>
+              </section>
+
+              <section className="demo-card">
+                <div className="demo-header">
+                  <div><span className="demo-monogram">LL</span><div><strong>LeafLens</strong><small>Synthetic schoolyard-leaf classifier</small></div></div>
+                  <span className="mode-pill cached">cached demo · public</span>
+                </div>
+                <div className="claim-strip"><BookOpen size={17} /><p>“Our model achieved <strong>0.91 macro-F1</strong> and outperformed two baselines.”</p></div>
+                <pre><code>{`macro_f1 = accuracy_score(y_test, predictions)\nprint(f"LeafLens macro-F1: {macro_f1:.2f}")`}</code></pre>
+                <div className="demo-defects">
+                  <span><CircleDot size={13} /> Metric mismatch</span>
+                  <span><CircleDot size={13} /> Split leakage</span>
+                  <span><CircleDot size={13} /> Missing baseline</span>
+                </div>
+              </section>
+
+              <section className={`upload-card ${entryMode === "upload" ? "upload-card-active" : ""}`} id="project-upload">
+                <div className="section-heading"><div><span>Bring your own project</span><h2>Manuscript, code, and optional context</h2></div><span className={`availability ${health?.liveReview ? "available" : ""}`}><CircleDot size={12} />{health?.liveReview ? "Live GPT-5.6 ready" : "Cached demo ready"}</span></div>
+                <div className="upload-grid">
+                  <label className={`upload-drop ${manuscript ? "upload-filled" : ""}`}>
+                    <input type="file" accept=".pdf,.docx,.md,.txt" onChange={(event) => setManuscript(event.target.files?.[0] ?? null)} />
+                    <span className="upload-icon"><FileText size={20} /></span>
+                    <span><strong>{manuscript?.name ?? "Add manuscript"}</strong><small>{manuscript ? formatBytes(manuscript.size) : "PDF, DOCX, Markdown, or text · 3 MB"}</small></span>
+                    <Upload size={16} />
+                  </label>
+                  <label className="upload-drop">
+                    <input ref={codeInputRef} type="file" multiple accept=".py,.ipynb,.r,.js,.jsx,.ts,.tsx,.java,.c,.cc,.cpp,.h,.hpp,.go,.rs,.m,.rb,.sql,.sh,.json,.yaml,.yml,.toml,.csv,.md,.txt" onChange={(event) => addCodeFiles(event.target.files)} />
+                    <span className="upload-icon"><FileCode2 size={20} /></span>
+                    <span><strong>Add code</strong><small>Up to 12 source or config files</small></span>
+                    <Upload size={16} />
+                  </label>
+                </div>
+                {codeFiles.length > 0 && <div className="file-chips">{codeFiles.map((file) => <span key={fileKey(file)}><FileCode2 size={13} />{file.name}<button onClick={() => setCodeFiles((current) => current.filter((item) => fileKey(item) !== fileKey(file)))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>)}</div>}
+                <label className="field-label"><span>Research context <em>optional</em></span><textarea value={context} onChange={(event) => setContext(event.target.value)} rows={2} placeholder="Research area, dataset, central claim, target fair or venue" /></label>
+                {health?.accessRequired && <label className="field-label access-field"><span><LockKeyhole size={14} /> Judge access code</span><input type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" placeholder="Required for live uploads" /></label>}
+                <div className="upload-footer"><p><ShieldCheck size={15} /> We do not execute code or automatically edit the submission.</p><button className="primary-button" onClick={() => void startReview("upload")}><Sparkles size={16} /> Review my project</button></div>
+              </section>
+              {error && <ErrorBanner message={error} cachedDemoUrl={cachedDemoUrl} />}
+            </div>
+          )}
+
+          {screen === "running" && (
+            <div className="running-view" aria-live="polite">
+              <div className="running-top"><div className="scan-orbit"><FlaskConical size={28} /><span /><span /></div><div><div className="eyebrow"><Sparkles size={14} /> {entryMode === "prepared" ? "Loading verified demo" : "GPT-5.6 review in progress"}</div><h1>Building the evidence map</h1><p>Every row below comes from the review stream. There are no timer-generated stages.</p></div></div>
+              <div className="live-trail">
+                {events.length === 0 && <div className="trail-event"><LoaderCircle className="spin" size={17} /><div><strong>Connecting to reviewer</strong><small>Waiting for the first server event</small></div></div>}
+                {events.filter((event) => event.event !== "review.completed").map((event, index) => <StreamEvent key={`${event.event}-${index}`} event={event} />)}
+              </div>
+              <button className="cancel-button" onClick={() => abortRef.current?.abort()}><Square size={13} fill="currentColor" /> Cancel review</button>
+            </div>
+          )}
+
+          {screen === "results" && review && (
+            <div className="results-view">
+              <div className="result-header">
+                <div><div className="eyebrow"><CheckCircle2 size={14} /> Claim–evidence–code map</div><h1>{review.project.title}</h1><ModelCopy links={sourceLinks}>{review.summary}</ModelCopy></div>
+                <span className={`mode-pill ${review.provenance.executionMode === "cached-demo" ? "cached" : "live"}`}>{review.provenance.executionMode}</span>
               </div>
 
-              {reviewMode === "manuscript" ? (
-                <div className="source-form">
-                  <div className="upload-grid">
-                    <label className={`upload-drop ${manuscript ? "upload-drop-filled" : ""}`}>
-                      <input type="file" accept=".pdf,.docx,.md,.txt" onChange={(event) => setManuscript(event.target.files?.[0] ?? null)} />
-                      <span className="upload-icon"><FileText size={18} /></span>
-                      <span><strong>{manuscript ? manuscript.name : "Add manuscript"}</strong><small>{manuscript ? formatBytes(manuscript.size) : "PDF, DOCX, Markdown, or text · 8 MB max"}</small></span>
-                      <Upload size={15} />
-                    </label>
-                    <label className="upload-drop">
-                      <input ref={codeInputRef} type="file" multiple accept=".py,.ipynb,.r,.js,.jsx,.ts,.tsx,.java,.c,.cc,.cpp,.h,.hpp,.go,.rs,.m,.rb,.sql,.sh,.json,.yaml,.yml,.toml,.csv,.md,.txt" onChange={(event) => addCodeFiles(event.target.files)} />
-                      <span className="upload-icon"><FileCode2 size={18} /></span>
-                      <span><strong>Add code files</strong><small>Up to 12 source or configuration files</small></span>
-                      <Upload size={15} />
-                    </label>
-                  </div>
-                  {codeFiles.length > 0 && <div className="file-list">{codeFiles.map((file) => <span key={fileKey(file)}><FileCode2 size={12} /><b>{file.name}</b><small>{formatBytes(file.size)}</small><button onClick={() => setCodeFiles((current) => current.filter((candidate) => fileKey(candidate) !== fileKey(file)))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>)}</div>}
-                  <label><span><Braces size={14} /> Research context <b>optional</b></span><textarea value={context} onChange={(event) => setContext(event.target.value)} placeholder="Research area, target venue, dataset, central claim, or concern to prioritize" rows={2} /></label>
-                  <div className="agent-capabilities"><span><BookOpen size={13} /> Claim review</span><span><FileCode2 size={13} /> Code parity</span><span><Search size={13} /> Related work</span><span><GitBranch size={13} /> Methods + evaluation</span></div>
-                </div>
-              ) : (
-                <>
-                  <div className="paper-preview-grid"><div className="paper-preview-card"><div className="paper-number">01</div><div><strong>Attention Is All You Need</strong><span>Vaswani et al. · 2017 · NeurIPS</span><small>Local implementation fixture</small></div></div><div className="paper-preview-card"><div className="paper-number">02</div><div><strong>BERT</strong><span>Devlin et al. · 2019 · NAACL</span><small>Local implementation fixture</small></div></div></div>
-                  <div className="method-preview"><div className="panel-heading"><span>Implementation excerpt</span><small>two local artifacts · source visible</small></div><pre><code>{`${attentionCode}\n\n${bertCode}`}</code></pre></div>
-                </>
+              <div className="result-stats">
+                <div><strong>{review.findings.filter((item) => item.status === "confirmed").length}</strong><span>confirmed</span></div>
+                <div><strong>{review.findings.filter((item) => item.status === "concern").length}</strong><span>concerns</span></div>
+                <div><strong>{review.sources.length}</strong><span>displayed sources</span></div>
+                <div><strong>{masteryCount}/{review.findings.length}</strong><span>concepts defended</span></div>
+              </div>
+
+              <div className="finding-tabs" aria-label="Review findings">
+                {review.findings.map((finding, index) => <button aria-pressed={selectedFinding?.id === finding.id} className={selectedFinding?.id === finding.id ? "finding-tab active" : "finding-tab"} key={finding.id} onClick={() => setSelectedFindingId(finding.id)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{finding.title}</strong><small>{finding.category.replaceAll("-", " ")}</small></div><b className={`status ${finding.status}`}>{finding.status}</b><ChevronRight size={15} /></button>)}
+              </div>
+
+              {selectedFinding && (
+                <FindingWorkspace
+                  finding={selectedFinding}
+                  sources={selectedFinding.sourceIds.map((id) => sourceMap.get(id)).filter((source): source is EvidenceSource => Boolean(source))}
+                  draft={drafts[selectedFinding.id] ?? emptyDraft}
+                  attempts={attempts[selectedFinding.id] ?? []}
+                  revealed={revealed.has(selectedFinding.id)}
+                  busy={coachBusy}
+                  onDraft={(draft) => setDrafts((current) => ({ ...current, [selectedFinding.id]: draft }))}
+                  onSubmit={() => void submitCoach(selectedFinding)}
+                  onReveal={() => setRevealed((current) => new Set(current).add(selectedFinding.id))}
+                />
               )}
 
-              {error && <div className="error-banner"><CircleAlert size={16} />{error}</div>}
-              <div className="run-row"><div><strong>{reviewMode === "manuscript" ? "The reviewer forms checks from your work" : "Finite prepared registry"}</strong><span>{reviewMode === "manuscript" ? "Claims · novelty · code · data · metrics · statistics" : "Equations · reported metrics · configuration · data contract"}</span></div><button className="primary-button" onClick={runAudit}><Play size={16} fill="currentColor" /> {reviewMode === "manuscript" ? "Review manuscript" : "Run prepared example"}</button></div>
-            </div>
-          )}
-
-          {runState === "running" && (
-            <div className="running-view" aria-live="polite"><div className="scan-orbit"><FlaskConical size={28} /><span /><span /></div><div className="eyebrow"><Sparkles size={14} /> Research agent working</div><h1>{auditStage}</h1><p>{reviewMode === "manuscript" ? "The reviewer is tracing your claims through the manuscript, implementation, and relevant prior research." : "The reviewer is comparing prepared source anchors with local implementation artifacts."}</p><div className="progress-track"><span /></div><div className="running-facts"><span>{reviewMode === "manuscript" ? "Live literature search" : "2 examples"}</span><span>Specific evidence anchors</span><span>No expected findings supplied</span></div></div>
-          )}
-
-          {payload?.kind === "prepared" && (runState === "review" || runState === "receipt") && (
-            <div className="results-view">
-              <div className="result-header"><div><div className="eyebrow issue-eyebrow"><CircleAlert size={14} /> Review findings returned</div><h1>The implementation needs a closer read.</h1><p>{payload.analysis.studentExplanation}</p></div><div className="model-pill"><Sparkles size={14} />{payload.analysis.mode === "gpt-5.6" ? "Reviewed by GPT-5.6" : "Local evidence fallback"}</div></div>
-              <div className="paper-result-grid">{payload.audit.papers.map((paper) => <a className={`paper-result-card ${paper.status === "needs review" ? "paper-result-issue" : ""}`} href={paper.sourceUrl} target="_blank" rel="noreferrer" key={paper.paperId}><div><span>{paper.paperId === "attention" ? "01" : "02"}</span><strong>{paper.title}</strong><small>{paper.reportedMetric}</small></div><b>{paper.findingCount ? `${paper.findingCount} finding${paper.findingCount > 1 ? "s" : ""}` : "Consistent"}<ChevronRight size={14} /></b></a>)}</div>
-              <div className="evidence-grid"><div className="overlap-card"><div className="panel-heading"><span>Reviewer explanation</span><b>{payload.analysis.issues.length} findings</b></div><div className="explanation-block"><Sparkles size={18} /><p>{payload.analysis.auditSummary}</p></div><div className="explanation-block explanation-soft"><ShieldCheck size={18} /><p>{payload.analysis.correctionRationale}</p></div></div><div className="checks-card"><div className="panel-heading"><span>Evidence registry</span><small>{payload.audit.findings.length} checks complete</small></div>{payload.audit.findings.map((finding) => <CheckRow key={`${finding.paperId}-${finding.id}`} label={`${finding.paperId === "attention" ? "Transformer" : "BERT"} · ${finding.label}`} detail={finding.detail} status={finding.status} />)}</div></div>
-              <div className="issue-list">{payload.analysis.issues.map((issue) => <div className="issue-card" key={`${issue.paperId}-${issue.checkId}`}><div className="issue-card-top"><span className="issue-severity">{issue.severity}</span><strong>{issue.title}</strong><small>{issue.paperAnchor}</small></div><p>{issue.evidence}</p><div><GitBranch size={14} /><span>{issue.correction}</span></div></div>)}</div>
-              {runState === "review" ? <ReceiptAction title="Preserve findings for review" detail={payload.analysis.correctionTitle} onPrepare={() => setRunState("receipt")} /> : <ReceiptReady status={payload.audit.receiptStatus} detail="Findings are preserved with source anchors and correction text." onDownload={downloadReceipt} />}
-            </div>
-          )}
-
-          {payload?.kind === "manuscript" && (runState === "review" || runState === "receipt") && (
-            <div className="results-view">
-              <div className="result-header"><div><div className="eyebrow"><FileText size={14} /> Manuscript review complete</div><h1>{payload.review.manuscript.title}</h1><p>{payload.review.reviewSummary}</p></div><div className="model-pill"><Sparkles size={14} /> GPT-5.6 + literature search</div></div>
-              <div className="agent-verdict"><span>{payload.review.verdict.replaceAll("-", " ")}</span><strong>{payload.review.findings.length} findings · {payload.review.relatedWork.length} related papers</strong><p>{payload.review.manuscript.centralClaims.join(" ")}</p></div>
-              <div className="agent-grid">
-                <div className="agent-panel"><div className="panel-heading"><span>Review trace</span><small>{payload.review.researchTrace.length} steps</small></div><div className="trace-list">{payload.review.researchTrace.map((step, index) => <div key={`${step.stage}-${index}`}><span>{index + 1}</span><div><strong>{step.stage}</strong><p>{step.detail}</p></div></div>)}</div></div>
-                <div className="agent-panel"><div className="panel-heading"><span>Related work</span><small>{payload.review.relatedWork.length} papers</small></div><div className="source-list">{payload.review.relatedWork.map((paper, index) => <a href={paper.url} target="_blank" rel="noreferrer" key={`${paper.url}-${index}`}><span><BookOpen size={13} /></span><div><strong>{paper.title}</strong><small>{paper.year} · {paper.relationship.replaceAll("-", " ")}</small></div><ExternalLink size={12} /></a>)}</div></div>
-              </div>
-              <div className="issue-list">{payload.review.findings.map((finding, index) => <div className="issue-card" key={`${finding.category}-${index}`}><div className="issue-card-top"><span className="issue-severity">{finding.severity}</span><strong>{finding.title}</strong><small>{Math.round(finding.confidence * 100)}% confidence</small></div><p>{finding.evidence}</p><div className="finding-anchors"><span><FileText size={13} />{finding.manuscriptAnchor}</span><span><FileCode2 size={13} />{finding.codeAnchor}</span><span><Globe2 size={13} />{finding.literatureContext}</span></div><div><GitBranch size={14} /><span>{finding.correction}</span></div></div>)}</div>
-              <div className="agent-checks"><div className="panel-heading"><span>Checks formed for this manuscript</span><small>{payload.review.checks.length} checks</small></div>{payload.review.checks.map((check, index) => <div key={`${check.label}-${index}`}><CircleCheck size={15} /><span><strong>{check.label}</strong><small>{check.rationale}</small></span><b>{check.status}</b></div>)}</div>
-              <div className="agent-panel sources-panel"><div className="panel-heading"><span>Sources used</span><small>{payload.review.sources.length} cited</small></div><div className="source-list">{payload.review.sources.map((source, index) => <a href={source.url} target="_blank" rel="noreferrer" key={`${source.url}-${index}`}><span><Link2 size={13} /></span><div><strong>{source.title}</strong><small>{source.role.replaceAll("-", " ")}</small></div><ExternalLink size={12} /></a>)}</div></div>
-              {runState === "review" ? <ReceiptAction title="Preserve the review trail" detail={`${payload.review.sources.length} sources and ${payload.review.findings.length} findings will be attached.`} onPrepare={() => setRunState("receipt")} /> : <ReceiptReady status={payload.review.verdict.replaceAll("-", " ")} detail={payload.review.limitations.join(" · ")} onDownload={downloadReceipt} />}
+              {error && <ErrorBanner message={error} cachedDemoUrl={cachedDemoUrl} />}
+              <div className="receipt-bar"><span><GraduationCap size={21} /></span><div><strong>Mastery receipt + mentor handoff</strong><p>Attempts, final explanations, revision plans, citations, mastered concepts, unresolved concerns, hashes, usage, latency, and cleanup.</p></div><button className="secondary-button" disabled={Object.keys(attempts).length === 0} onClick={exportReceipt}><Download size={16} /> Export receipt</button></div>
             </div>
           )}
         </section>
 
         <aside className="inspector">
-          <div className="inspector-top"><span>Review context</span><b>READ ONLY</b></div>
-          <div className="poster-mini"><div className="poster-bar">PRE-SUBMISSION REVIEW</div><h3>Your draft, its code, and the research it builds on.</h3><div className="poster-chart"><span style={{ height: "52%" }} /><span style={{ height: "82%" }} /><span style={{ height: "63%" }} /><span style={{ height: "100%" }} /></div><div className="poster-result"><strong>1</strong><span>evidence chain</span></div></div>
-          <div className="metadata-list"><div><span><FileText size={14} /> Input</span><b>Manuscript</b></div><div><span><FileCode2 size={14} /> Code</span><b>Working files</b></div><div><span><Globe2 size={14} /> Research</span><b>Prior literature</b></div><div><span><GitBranch size={14} /> Output</span><b>Cited review</b></div></div>
-          <div className="inspector-section"><span className="sidebar-label">Review loop</span><p>Extract claims, inspect the implementation, research related work, test methods and evaluation, then expose uncertainty.</p></div>
-          <div className="inspector-section"><span className="sidebar-label">Coverage</span><div className="boundary-note"><CircleAlert size={15} /><p>The review does not execute code or prove novelty. Missing data, environment files, or experiments can remain unverified.</p></div></div>
-          {payload?.kind === "prepared" && <div className="fingerprint"><span>PACKAGE FINGERPRINT</span><code>{payload.audit.datasetFingerprint}</code></div>}
+          <span className="sidebar-label">What the coach protects</span>
+          <div className="inspector-card"><BrainCircuit size={19} /><strong>Reasoning over rewriting</strong><p>The correction stays hidden while the student diagnoses the threat and proposes a checkable revision.</p></div>
+          <div className="inspector-card"><Globe2 size={19} /><strong>Inspectible sources</strong><p>Live links must come from native web-search output. Model-invented and non-HTTPS URLs are discarded.</p></div>
+          <div className="inspector-card"><ShieldCheck size={19} /><strong>Honest uncertainty</strong><p>Findings are confirmed, concerns, or unverified—never decorated with unsupported confidence percentages.</p></div>
+          <div className="eval-mini"><span className="sidebar-label">Cached fixture check</span><strong>8 / 8</strong><p>Seeded categories detected by deterministic fixture checks. Not a live model score.</p><a href="/demo/evaluation-scorecard.json" target="_blank" rel="noreferrer">Open scorecard <ExternalLink size={12} /></a></div>
         </aside>
       </div>
     </main>
   );
 }
 
-function ReceiptAction({ title, detail, onPrepare }: { title: string; detail: string; onPrepare: () => void }) {
-  return <div className="correction-bar"><span className="correction-icon"><GitBranch size={20} /></span><div><small>Next action</small><strong>{title}</strong><p>{detail}</p></div><button className="primary-button" onClick={onPrepare}><Check size={16} /> Prepare receipt</button></div>;
+function PathStep({ icon, label, detail, active }: { icon: React.ReactNode; label: string; detail: string; active: boolean }) {
+  return <div className={active ? "path-step active" : "path-step"}><span>{active ? <Check size={14} /> : icon}</span><div><strong>{label}</strong><small>{detail}</small></div></div>;
 }
 
-function ReceiptReady({ status, detail, onDownload }: { status: string; detail: string; onDownload: () => void }) {
-  return <div className="receipt-bar"><span className="receipt-check"><Check size={22} /></span><div><small>Review receipt</small><strong>{status}</strong><p>{detail}</p></div><button className="secondary-button" onClick={onDownload}><Download size={16} /> Export receipt</button></div>;
+function Artifact({ href, icon, name, detail }: { href: string; icon: React.ReactNode; name: string; detail: string }) {
+  return <a className="artifact-card" href={href} target="_blank" rel="noreferrer"><span>{icon}</span><div><strong>{name}</strong><small>{detail}</small></div><ExternalLink size={13} /></a>;
+}
+
+function ErrorBanner({ message, cachedDemoUrl }: { message: string; cachedDemoUrl?: string | null }) {
+  return <div className="error-banner" role="alert"><CircleAlert size={17} /><span>{message}</span>{cachedDemoUrl && <a href={cachedDemoUrl}>Open the cached LeafLens demo <ArrowRight size={13} /></a>}</div>;
+}
+
+function StreamEvent({ event }: { event: ReviewStreamEvent }) {
+  if (event.event === "review.started") return <div className="trail-event complete"><CircleDot size={17} /><div><strong>Review opened</strong><small>{event.requestedMode} · {event.reviewId}</small></div></div>;
+  if (event.event === "review.mode") return <div className="trail-event complete"><Bot size={17} /><div><strong>{event.mode}</strong><small>{event.detail}</small></div></div>;
+  if (event.event === "agent.started") return <div className="trail-event active"><LoaderCircle className="spin" size={17} /><div><strong>{displayAgent(event.agent)}</strong><small>{event.role}</small></div></div>;
+  if (event.event === "agent.completed") return <div className="trail-event complete"><CheckCircle2 size={17} /><div><strong>{displayAgent(event.agent)} complete</strong><small>{event.detail}</small></div></div>;
+  if (event.event === "source.found") return <div className="trail-event complete"><Globe2 size={17} /><div><strong>Verified source</strong><small>{event.source.title}</small></div></div>;
+  if (event.event === "review.failed") return <div className="trail-event failed"><CircleAlert size={17} /><div><strong>Review failed</strong><small>{event.message}</small></div></div>;
+  return null;
+}
+
+function FindingWorkspace({ finding, sources, draft, attempts, revealed, busy, onDraft, onSubmit, onReveal }: {
+  finding: EvidenceFinding;
+  sources: EvidenceSource[];
+  draft: Draft;
+  attempts: CoachAttempt[];
+  revealed: boolean;
+  busy: boolean;
+  onDraft: (draft: Draft) => void;
+  onSubmit: () => void;
+  onReveal: () => void;
+}) {
+  const latest = attempts.at(-1);
+  const canReveal = latest?.status === "mastered" || attempts.length >= 2;
+  const links = sources.map((source) => source.url);
+  const coachHint = latest?.status !== "mastered" ? latest?.nextHint : null;
+  return (
+    <section className="finding-workspace">
+      <div className="finding-overview">
+        <div className="finding-title-row"><span className={`status ${finding.status}`}>{finding.status}</span><span className={`severity ${finding.severity}`}>{finding.severity}</span><strong>{finding.title}</strong></div>
+        <div className="evidence-map">
+          <div><span className="map-label"><BookOpen size={14} /> Claim</span><ModelCopy links={links}>{finding.claim}</ModelCopy></div>
+          <div><span className="map-label"><Search size={14} /> Evidence</span><ModelCopy links={links}>{finding.evidenceSummary}</ModelCopy></div>
+          <div><span className="map-label"><BrainCircuit size={14} /> Why it matters</span><ModelCopy links={links}>{finding.whyItMatters}</ModelCopy></div>
+        </div>
+        <div className="anchors">
+          {finding.anchors.map((anchor, index) => <div className="anchor-card" key={`${anchor.fileName}-${anchor.locator}-${index}`}><div><span>{anchor.kind === "code" ? <FileCode2 size={14} /> : <FileText size={14} />}{anchor.locator}</span><b className={anchor.verification === "verified" ? "verified" : "located"}>{anchor.verification}</b></div><pre><code>{anchor.excerpt}</code></pre></div>)}
+        </div>
+        <Sources className="finding-sources" defaultOpen>
+          <SourcesTrigger count={sources.length} />
+          <SourcesContent>{sources.map((source) => <Source className="citation-link" href={source.url} title={source.title} key={source.id}><Globe2 size={14} /><span>{source.title}</span><small>{source.verification}</small><ExternalLink size={12} /></Source>)}</SourcesContent>
+        </Sources>
+      </div>
+
+      <div className="coach-panel">
+        <div className="coach-heading"><span><GraduationCap size={18} /></span><div><strong>Defend, then revise</strong><p>The direct correction is hidden. Explain the methodological consequence first.</p></div><b>{attempts.length}/2 attempts</b></div>
+        <label><span>Why does this matter?</span><textarea rows={3} value={draft.diagnosis} onChange={(event) => onDraft({ ...draft, diagnosis: event.target.value })} placeholder="Connect the cited mismatch to the validity of the claim…" disabled={latest?.status === "mastered"} /></label>
+        <label><span>What would you revise?</span><textarea rows={3} value={draft.revisionPlan} onChange={(event) => onDraft({ ...draft, revisionPlan: event.target.value })} placeholder="Propose a concrete change and how you would verify it…" disabled={latest?.status === "mastered"} /></label>
+        {latest && <div className={`coach-feedback ${latest.status}`}><div><Lightbulb size={17} /><strong>{statusLabel(latest.status)}</strong></div><ModelCopy links={links}>{latest.feedback}</ModelCopy>{coachHint && <p className="hint"><Lightbulb size={14} /> Hint: {coachHint}</p>}</div>}
+        <div className="coach-actions">
+          {!canReveal && <button className="primary-button" onClick={onSubmit} disabled={busy || attempts.length >= 2}>{busy ? <LoaderCircle className="spin" size={16} /> : <ArrowRight size={16} />} {attempts.length ? "Try again" : "Assess my reasoning"}</button>}
+          {canReveal && !revealed && <button className="secondary-button" onClick={onReveal}><Lightbulb size={16} /> Reveal evidence-backed correction</button>}
+        </div>
+        <div className={revealed ? "correction revealed" : "correction locked"}>
+          <span>{revealed ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}</span>
+          <div><strong>{revealed ? "Evidence-backed correction" : "Correction stays hidden"}</strong>{revealed ? <ModelCopy links={links}>{finding.correction}</ModelCopy> : <p>Master the concept or make two serious attempts to unlock it.</p>}</div>
+        </div>
+      </div>
+    </section>
+  );
 }

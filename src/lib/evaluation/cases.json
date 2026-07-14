@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "second-lab.evaluation-cases.v1",
+  "publishedOn": "2026-07-14",
+  "categories": [
+    "metric-mismatch",
+    "data-leakage",
+    "unsupported-baseline",
+    "reproducibility"
+  ],
+  "cases": [
+    {
+      "id": "metric-mismatch",
+      "title": "Metric mismatch only",
+      "manuscriptFileName": "metric-mismatch.md",
+      "codeFileName": "metric-mismatch.py",
+      "manuscript": "# Seeded metric case\n\nWe report macro-F1 of 0.84 on the held-out set. The split uses specimen groups and seed 2026. No baseline comparison is claimed.",
+      "code": "from sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import GroupShuffleSplit\n\nSEED = 2026\nscore = accuracy_score(y_test, predictions)\nprint(score)\n",
+      "expectedCategories": [
+        "metric-mismatch"
+      ],
+      "notes": "The label in the paper and the metric function in code disagree."
+    },
+    {
+      "id": "data-leakage",
+      "title": "Augmentation lineage leakage only",
+      "manuscriptFileName": "data-leakage.md",
+      "codeFileName": "data-leakage.py",
+      "manuscript": "# Seeded leakage case\n\nWe report accuracy of 0.93 on unseen source specimens. We used seed 2026 and do not make a baseline claim.",
+      "code": "import numpy as np\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\nSEED = 2026\nrotated = np.stack([np.rot90(image) for image in images])\nall_images = np.concatenate([images, rotated])\nall_labels = np.concatenate([labels, labels])\nX_train, X_test, y_train, y_test = train_test_split(all_images, all_labels, random_state=SEED)\nscore = accuracy_score(y_test, predictions)\n",
+      "expectedCategories": [
+        "data-leakage"
+      ],
+      "notes": "Derived copies are created before the row-level split."
+    },
+    {
+      "id": "unsupported-baseline",
+      "title": "Unsupported baseline claim only",
+      "manuscriptFileName": "unsupported-baseline.md",
+      "codeFileName": "unsupported-baseline.py",
+      "manuscript": "# Seeded baseline case\n\nWith seed 2026 and a specimen-grouped split, our model achieved accuracy of 0.88 and outperformed the majority-class baseline at 0.62.",
+      "code": "from sklearn.metrics import accuracy_score\n\nSEED = 2026\nmodel = train_model(X_train, y_train, seed=SEED)\npredictions = model.predict(X_test)\nscore = accuracy_score(y_test, predictions)\nprint(score)\n",
+      "expectedCategories": [
+        "unsupported-baseline"
+      ],
+      "notes": "The named comparison has no implementation or score path."
+    },
+    {
+      "id": "reproducibility",
+      "title": "Reproducibility defect only",
+      "manuscriptFileName": "reproducibility.md",
+      "codeFileName": "reproducibility.py",
+      "manuscript": "# Seeded reproducibility case\n\nWe report accuracy of 0.81. We do not claim a baseline comparison. The exact random seed and split IDs were not saved.",
+      "code": "from sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\nX_train, X_test, y_train, y_test = train_test_split(images, labels, shuffle=True)\nscore = accuracy_score(y_test, predictions)\n",
+      "expectedCategories": [
+        "reproducibility"
+      ],
+      "notes": "The result has no stable seed or saved split identity."
+    },
+    {
+      "id": "mixed-defects",
+      "title": "LeafLens mixed flagship defects",
+      "manuscriptFileName": "student-paper.md",
+      "codeFileName": "student-analysis.py",
+      "manuscriptPath": "public/papers/leaflens/student-paper.md",
+      "codePath": "public/papers/leaflens/student-analysis.py",
+      "expectedCategories": [
+        "metric-mismatch",
+        "data-leakage",
+        "unsupported-baseline",
+        "reproducibility"
+      ],
+      "notes": "The public LeafLens prepared study combines all four seeded categories."
+    },
+    {
+      "id": "clean-control",
+      "title": "Corrected LeafLens clean control",
+      "manuscriptFileName": "clean-control-paper.md",
+      "codeFileName": "clean-control-analysis.py",
+      "manuscriptPath": "public/papers/leaflens/clean-control-paper.md",
+      "codePath": "public/papers/leaflens/clean-control-analysis.py",
+      "expectedCategories": [],
+      "notes": "Metric, grouping, baselines, claim scope, seed, and reproducibility details are aligned."
+    }
+  ]
+}
