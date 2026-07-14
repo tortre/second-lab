@@ -17,7 +17,6 @@ import {
   BookOpen,
   Bot,
   BrainCircuit,
-  Check,
   CheckCircle2,
   ChevronRight,
   CircleAlert,
@@ -27,16 +26,13 @@ import {
   FileCode2,
   FileText,
   FlaskConical,
-  GitBranch,
   Globe2,
   GraduationCap,
   Lightbulb,
   LoaderCircle,
   LockKeyhole,
-  Play,
   RotateCcw,
   Search,
-  ShieldCheck,
   Sparkles,
   Square,
   Upload,
@@ -50,6 +46,9 @@ type Health = { liveReview: boolean; multiAgent: boolean; accessRequired: boolea
 type Draft = { diagnosis: string; revisionPlan: string };
 
 const emptyDraft: Draft = { diagnosis: "", revisionPlan: "" };
+const manuscriptExtensions = new Set(["pdf", "docx", "md", "txt"]);
+const codeExtensions = new Set(["py", "ipynb", "r", "js", "jsx", "ts", "tsx", "java", "c", "cc", "cpp", "h", "hpp", "go", "rs", "m", "rb", "sql", "sh", "json", "yaml", "yml", "toml", "csv", "md", "txt"]);
+const projectFileTypes = ".pdf,.docx,.md,.txt,.py,.ipynb,.r,.js,.jsx,.ts,.tsx,.java,.c,.cc,.cpp,.h,.hpp,.go,.rs,.m,.rb,.sql,.sh,.json,.yaml,.yml,.toml,.csv";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -58,6 +57,10 @@ function formatBytes(bytes: number) {
 
 function fileKey(file: File) {
   return `${file.name}-${file.size}-${file.lastModified}`;
+}
+
+function fileExtension(file: File) {
+  return file.name.split(".").at(-1)?.toLowerCase() ?? "";
 }
 
 function displayAgent(agent: string) {
@@ -98,7 +101,7 @@ export function SecondLabWorkspace() {
   const [health, setHealth] = useState<Health | null>(null);
   const [manuscript, setManuscript] = useState<File | null>(null);
   const [codeFiles, setCodeFiles] = useState<File[]>([]);
-  const [context, setContext] = useState("");
+  const [dragging, setDragging] = useState(false);
   const [accessCode, setAccessCode] = useState("");
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -106,7 +109,7 @@ export function SecondLabWorkspace() {
   const [coachBusy, setCoachBusy] = useState(false);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
-  const codeInputRef = useRef<HTMLInputElement>(null);
+  const projectInputRef = useRef<HTMLInputElement>(null);
   const autoStarted = useRef(false);
 
   useEffect(() => {
@@ -132,24 +135,43 @@ export function SecondLabWorkspace() {
   function reset() {
     abortRef.current?.abort();
     setScreen("landing");
+    setEntryMode("prepared");
     setReview(null);
     setEvents([]);
     setError(null);
     setCachedDemoUrl(null);
+    setManuscript(null);
+    setCodeFiles([]);
+    setDragging(false);
+    setAccessCode("");
     setAttempts({});
     setDrafts({});
     setRevealed(new Set());
     setSelectedFindingId(null);
   }
 
-  function addCodeFiles(files: FileList | null) {
-    if (!files) return;
-    setCodeFiles((current) => {
-      const unique = new Map(current.map((file) => [fileKey(file), file]));
-      Array.from(files).forEach((file) => unique.set(fileKey(file), file));
-      return [...unique.values()].slice(0, 12);
-    });
-    if (codeInputRef.current) codeInputRef.current.value = "";
+  function addProjectFiles(files: FileList | File[]) {
+    const incoming = Array.from(files);
+    if (incoming.length === 0) return;
+    let nextManuscript = manuscript;
+    const nextCode = new Map(codeFiles.map((file) => [fileKey(file), file]));
+    const rejected: string[] = [];
+
+    for (const file of incoming) {
+      const extension = fileExtension(file);
+      if (!nextManuscript && manuscriptExtensions.has(extension)) {
+        nextManuscript = file;
+      } else if (codeExtensions.has(extension)) {
+        nextCode.set(fileKey(file), file);
+      } else {
+        rejected.push(file.name);
+      }
+    }
+
+    setManuscript(nextManuscript);
+    setCodeFiles([...nextCode.values()].slice(0, 12));
+    setError(rejected.length > 0 ? `I couldn't use ${rejected.join(", ")}. Add a paper and source-code files.` : null);
+    if (projectInputRef.current) projectInputRef.current.value = "";
   }
 
   async function unlockLiveReview() {
@@ -168,8 +190,8 @@ export function SecondLabWorkspace() {
     if (mode === "upload" && (!manuscript || codeFiles.length === 0)) {
       setEntryMode("upload");
       setError(!manuscript
-        ? "Add your manuscript before starting the live review."
-        : "Add at least one code file so the review can map claims to the implementation.");
+        ? "Add your paper first."
+        : "Add at least one code file.");
       document.getElementById("project-upload")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
@@ -206,7 +228,6 @@ export function SecondLabWorkspace() {
         const form = new FormData();
         form.append("manuscript", manuscript!);
         codeFiles.forEach((file) => form.append("code", file));
-        if (context.trim()) form.append("context", context.trim());
         response = await fetch("/api/review", { method: "POST", body: form, signal: controller.signal });
       }
       let completed: ReviewResult | null = null;
@@ -296,105 +317,58 @@ export function SecondLabWorkspace() {
         <button className="brand-lockup brand-button" onClick={reset} aria-label="Return to Second Lab home">
           <span className="brand-mark"><FlaskConical size={18} /></span>
           <span>Second Lab</span>
-          <em>research methods coach</em>
         </button>
         <div className="topbar-actions">
-          <span className="secure-pill"><ShieldCheck size={14} /> Evidence before answers</span>
-          <button className="icon-button" onClick={reset} aria-label="Reset project"><RotateCcw size={16} /></button>
+          <button className="reset-button" onClick={reset}><RotateCcw size={15} /> Start over</button>
         </div>
       </header>
 
       <div className="workspace-grid">
-        <aside className="sidebar">
-          <span className="sidebar-label">Learning path</span>
-          <div className="path-list">
-            <PathStep icon={<FileText size={15} />} label="Map the claim" detail="Paper ↔ code ↔ sources" active={screen !== "landing"} />
-            <PathStep icon={<BrainCircuit size={15} />} label="Defend it" detail="Explain why it matters" active={screen === "results"} />
-            <PathStep icon={<GitBranch size={15} />} label="Revise it" detail="Propose a checkable fix" active={masteryCount > 0} />
-            <PathStep icon={<Download size={15} />} label="Hand it off" detail="Mentor-ready receipt" active={Object.keys(attempts).length > 0} />
-          </div>
-
-          <span className="sidebar-label sidebar-section">LeafLens package</span>
-          <div className="artifact-list">
-            <Artifact href="/papers/leaflens/student-paper.md" icon={<FileText size={16} />} name="student-paper.md" detail="Synthetic study" />
-            <Artifact href="/papers/leaflens/student-analysis.py" icon={<FileCode2 size={16} />} name="student-analysis.py" detail="Inspectable code" />
-            <Artifact href="/papers/leaflens/clean-control-paper.md" icon={<CheckCircle2 size={16} />} name="clean control" detail="Evaluation variant" />
-          </div>
-
-          <div className="privacy-note">
-            <ShieldCheck size={16} />
-            <p><strong>Student-safe boundary</strong>No code execution, paper rewriting, accounts, or app database. Live files use a one-hour expiry backstop.</p>
-          </div>
-        </aside>
-
         <section className="main-panel">
           {screen === "landing" && (
-            <div className="landing-view">
-              <section className="hero">
-                <div className="eyebrow"><GraduationCap size={15} /> Built for student scientists</div>
-                <h1>Learn to defend your research <mark>before someone else questions it.</mark></h1>
-                <p>Second Lab maps every important claim to the manuscript, implementation, and trustworthy methods evidence—then asks you to explain the problem and design the revision.</p>
-                <div className="hero-actions">
-                  <button id="try-student-study" className="primary-button primary-large" onClick={() => void startReview("prepared")}>
-                    <Play size={17} fill="currentColor" /> Try a student study
-                  </button>
-                  <button className="secondary-button secondary-large" onClick={() => {
-                    setEntryMode("upload");
-                    document.getElementById("project-upload")?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  }}>
-                    <Upload size={17} /> Review my project
-                  </button>
-                </div>
-                {health?.liveReview && health.accessRequired && <label className="hero-access"><span><LockKeyhole size={14} /> Judge code <em>optional for cached demo</em></span><input type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" placeholder="Unlock the live three-specialist LeafLens run" /></label>}
-                <div className="hero-proof">
-                  <span><Check size={14} /> Correction hidden first</span>
-                  <span><Check size={14} /> Exact evidence anchors</span>
-                  <span><Check size={14} /> No confidence theater</span>
-                </div>
+            <div className="landing-view simple-landing">
+              <section className="simple-hero">
+                <h1>Check your research.</h1>
+                <p>Drop in whatever you have.</p>
               </section>
 
-              <section className="demo-card">
-                <div className="demo-header">
-                  <div><span className="demo-monogram">LL</span><div><strong>LeafLens</strong><small>Synthetic schoolyard-leaf classifier</small></div></div>
-                  <span className="mode-pill cached">cached demo · public</span>
-                </div>
-                <div className="claim-strip"><BookOpen size={17} /><p>“Our model achieved <strong>0.91 macro-F1</strong> and outperformed two baselines.”</p></div>
-                <pre><code>{`macro_f1 = accuracy_score(y_test, predictions)\nprint(f"LeafLens macro-F1: {macro_f1:.2f}")`}</code></pre>
-                <div className="demo-defects">
-                  <span><CircleDot size={13} /> Metric mismatch</span>
-                  <span><CircleDot size={13} /> Split leakage</span>
-                  <span><CircleDot size={13} /> Missing baseline</span>
-                </div>
-              </section>
+              <section className="simple-start" id="project-upload">
+                <label
+                  className={`simple-drop-zone ${dragging ? "dragging" : ""} ${manuscript || codeFiles.length > 0 ? "has-files" : ""}`}
+                  onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
+                  onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(event) => { event.preventDefault(); setDragging(false); addProjectFiles(event.dataTransfer.files); }}
+                >
+                  <input ref={projectInputRef} type="file" multiple accept={projectFileTypes} onChange={(event) => event.target.files && addProjectFiles(event.target.files)} />
+                  <span className="simple-drop-icon"><Upload size={28} /></span>
+                  <strong>{manuscript || codeFiles.length > 0 ? `${Number(Boolean(manuscript)) + codeFiles.length} file${Number(Boolean(manuscript)) + codeFiles.length === 1 ? "" : "s"} added` : "Drop files here"}</strong>
+                  <small>{!manuscript ? "Start with your paper" : codeFiles.length === 0 ? "Now add your code" : "Ready to check"}</small>
+                  <em>or click to choose files</em>
+                </label>
 
-              <section className={`upload-card ${entryMode === "upload" ? "upload-card-active" : ""}`} id="project-upload">
-                <div className="section-heading"><div><span>Bring your own project</span><h2>Manuscript, code, and optional context</h2></div><span className={`availability ${health?.liveReview ? "available" : ""}`}><CircleDot size={12} />{health?.liveReview ? "Live GPT-5.6 ready" : "Cached demo ready"}</span></div>
-                <div className="upload-grid">
-                  <label className={`upload-drop ${manuscript ? "upload-filled" : ""}`}>
-                    <input type="file" accept=".pdf,.docx,.md,.txt" onChange={(event) => setManuscript(event.target.files?.[0] ?? null)} />
-                    <span className="upload-icon"><FileText size={20} /></span>
-                    <span><strong>{manuscript?.name ?? "Add manuscript"}</strong><small>{manuscript ? formatBytes(manuscript.size) : "PDF, DOCX, Markdown, or text · 3 MB"}</small></span>
-                    <Upload size={16} />
-                  </label>
-                  <label className="upload-drop">
-                    <input ref={codeInputRef} type="file" multiple accept=".py,.ipynb,.r,.js,.jsx,.ts,.tsx,.java,.c,.cc,.cpp,.h,.hpp,.go,.rs,.m,.rb,.sql,.sh,.json,.yaml,.yml,.toml,.csv,.md,.txt" onChange={(event) => addCodeFiles(event.target.files)} />
-                    <span className="upload-icon"><FileCode2 size={20} /></span>
-                    <span><strong>Add code</strong><small>Up to 12 source or config files</small></span>
-                    <Upload size={16} />
-                  </label>
-                </div>
-                {codeFiles.length > 0 && <div className="file-chips">{codeFiles.map((file) => <span key={fileKey(file)}><FileCode2 size={13} />{file.name}<button onClick={() => setCodeFiles((current) => current.filter((item) => fileKey(item) !== fileKey(file)))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>)}</div>}
-                <label className="field-label"><span>Research context <em>optional</em></span><textarea value={context} onChange={(event) => setContext(event.target.value)} rows={2} placeholder="Research area, dataset, central claim, target fair or venue" /></label>
-                {health?.accessRequired && <label className="field-label access-field"><span><LockKeyhole size={14} /> Judge access code</span><input type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" placeholder="Required for live uploads" /></label>}
-                <div className="upload-footer"><p><ShieldCheck size={15} /> We do not execute code or automatically edit the submission.</p><button className="primary-button" onClick={() => void startReview("upload")}><Sparkles size={16} /> Review my project</button></div>
+                {(manuscript || codeFiles.length > 0) && <div className="simple-file-list">
+                  {manuscript && <span><FileText size={15} /><b>{manuscript.name}</b><small>{formatBytes(manuscript.size)}</small><button onClick={() => setManuscript(null)} aria-label={`Remove ${manuscript.name}`}><X size={14} /></button></span>}
+                  {codeFiles.map((file) => <span key={fileKey(file)}><FileCode2 size={15} /><b>{file.name}</b><small>{formatBytes(file.size)}</small><button onClick={() => setCodeFiles((current) => current.filter((item) => fileKey(item) !== fileKey(file)))} aria-label={`Remove ${file.name}`}><X size={14} /></button></span>)}
+                </div>}
+
+                {health?.accessRequired && manuscript && codeFiles.length > 0 && <label className="simple-access"><span><LockKeyhole size={15} /> Access code</span><input type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" /></label>}
+
+                {error && <ErrorBanner message={error} cachedDemoUrl={cachedDemoUrl} />}
+
+                {manuscript && codeFiles.length > 0 && <button className="primary-button simple-review-button" onClick={() => void startReview("upload")}>
+                  <Sparkles size={18} /> Check my research
+                </button>}
+                <button id="try-student-study" className="simple-demo-link" onClick={() => void startReview("prepared")}>
+                  No project? Try the demo <ArrowRight size={14} />
+                </button>
               </section>
-              {error && <ErrorBanner message={error} cachedDemoUrl={cachedDemoUrl} />}
             </div>
           )}
 
           {screen === "running" && (
             <div className="running-view" aria-live="polite">
-              <div className="running-top"><div className="scan-orbit"><FlaskConical size={28} /><span /><span /></div><div><div className="eyebrow"><Sparkles size={14} /> {entryMode === "prepared" ? "Loading verified demo" : "GPT-5.6 review in progress"}</div><h1>Building the evidence map</h1><p>Every row below comes from the review stream. There are no timer-generated stages.</p></div></div>
+              <div className="running-top"><div className="scan-orbit"><FlaskConical size={28} /><span /><span /></div><div><div className="eyebrow"><Sparkles size={14} /> {entryMode === "prepared" ? "Opening the demo" : "Checking your project"}</div><h1>Checking your research</h1><p>This can take a minute. We’ll show you what we find.</p></div></div>
               <div className="live-trail">
                 {events.length === 0 && <div className="trail-event"><LoaderCircle className="spin" size={17} /><div><strong>Connecting to reviewer</strong><small>Waiting for the first server event</small></div></div>}
                 {events.filter((event) => event.event !== "review.completed").map((event, index) => <StreamEvent key={`${event.event}-${index}`} event={event} />)}
@@ -406,7 +380,7 @@ export function SecondLabWorkspace() {
           {screen === "results" && review && (
             <div className="results-view">
               <div className="result-header">
-                <div><div className="eyebrow"><CheckCircle2 size={14} /> Claim–evidence–code map</div><h1>{review.project.title}</h1><ModelCopy links={sourceLinks}>{review.summary}</ModelCopy></div>
+                <div><div className="eyebrow"><CheckCircle2 size={14} /> What we found</div><h1>{review.project.title}</h1><ModelCopy links={sourceLinks}>{review.summary}</ModelCopy></div>
                 <span className={`mode-pill ${review.provenance.executionMode === "cached-demo" ? "cached" : "live"}`}>{review.provenance.executionMode}</span>
               </div>
 
@@ -440,25 +414,9 @@ export function SecondLabWorkspace() {
             </div>
           )}
         </section>
-
-        <aside className="inspector">
-          <span className="sidebar-label">What the coach protects</span>
-          <div className="inspector-card"><BrainCircuit size={19} /><strong>Reasoning over rewriting</strong><p>The correction stays hidden while the student diagnoses the threat and proposes a checkable revision.</p></div>
-          <div className="inspector-card"><Globe2 size={19} /><strong>Inspectible sources</strong><p>Live links must come from native web-search output. Model-invented and non-HTTPS URLs are discarded.</p></div>
-          <div className="inspector-card"><ShieldCheck size={19} /><strong>Honest uncertainty</strong><p>Findings are confirmed, concerns, or unverified—never decorated with unsupported confidence percentages.</p></div>
-          <div className="eval-mini"><span className="sidebar-label">Cached fixture check</span><strong>8 / 8</strong><p>Seeded categories detected by deterministic fixture checks. Not a live model score.</p><a href="/demo/evaluation-scorecard.json" target="_blank" rel="noreferrer">Open scorecard <ExternalLink size={12} /></a></div>
-        </aside>
       </div>
     </main>
   );
-}
-
-function PathStep({ icon, label, detail, active }: { icon: React.ReactNode; label: string; detail: string; active: boolean }) {
-  return <div className={active ? "path-step active" : "path-step"}><span>{active ? <Check size={14} /> : icon}</span><div><strong>{label}</strong><small>{detail}</small></div></div>;
-}
-
-function Artifact({ href, icon, name, detail }: { href: string; icon: React.ReactNode; name: string; detail: string }) {
-  return <a className="artifact-card" href={href} target="_blank" rel="noreferrer"><span>{icon}</span><div><strong>{name}</strong><small>{detail}</small></div><ExternalLink size={13} /></a>;
 }
 
 function ErrorBanner({ message, cachedDemoUrl }: { message: string; cachedDemoUrl?: string | null }) {

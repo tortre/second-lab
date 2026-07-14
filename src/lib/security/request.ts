@@ -23,12 +23,19 @@ function configuredOrigins() {
     .filter((origin): origin is string => Boolean(origin));
 }
 
+function localDevelopmentOrigins(requestUrl: URL) {
+  if (process.env.NODE_ENV === "production") return [];
+  const port = requestUrl.port ? `:${requestUrl.port}` : "";
+  return [`http://localhost${port}`, `http://127.0.0.1${port}`];
+}
+
 export function isSameOriginRequest(request: Request) {
-  const requestOrigin = normalizeOrigin(new URL(request.url).origin);
+  const requestUrl = new URL(request.url);
+  const requestOrigin = normalizeOrigin(requestUrl.origin);
   const suppliedOrigin = normalizeOrigin(request.headers.get("origin"));
   if (!requestOrigin || !suppliedOrigin) return false;
 
-  const allowedOrigins = new Set([requestOrigin, ...configuredOrigins()]);
+  const allowedOrigins = new Set([requestOrigin, ...configuredOrigins(), ...localDevelopmentOrigins(requestUrl)]);
   return allowedOrigins.has(suppliedOrigin);
 }
 
