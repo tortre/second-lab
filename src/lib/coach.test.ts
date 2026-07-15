@@ -19,16 +19,40 @@ const finding: EvidenceFinding = {
 };
 
 describe("cached defend/revise coach", () => {
-  it("masters a diagnosis and actionable revision", () => {
+  it("does not master superficial metric keywords", () => {
     const result = assessCachedAttempt({
       finding,
       priorAttempts: [],
-      diagnosis: "Accuracy is not macro-F1 and can hide weak minority-class performance.",
-      revisionPlan: "Recompute with f1_score average macro and report the result.",
+      diagnosis: "accuracy",
+      revisionPlan: "f1_score",
+      safetyIdentifier: "test",
+    });
+    expect(result.status).not.toBe("mastered");
+    expect(result.masteredConcepts).toEqual([]);
+  });
+
+  it("masters an evidence-linked diagnosis and checkable revision", () => {
+    const result = assessCachedAttempt({
+      finding,
+      priorAttempts: [],
+      diagnosis: "The paper claims macro-F1, but the code calculates accuracy, which can hide weak minority-class performance.",
+      revisionPlan: "Calculate f1_score with average=macro, rerun the held-out test, and report the resulting score in the paper.",
       safetyIdentifier: "test",
     });
     expect(result.status).toBe("mastered");
     expect(result.masteredConcepts).toContain("metric alignment");
+  });
+
+  it("keeps a substantive diagnosis with a vague revision at developing", () => {
+    const result = assessCachedAttempt({
+      finding,
+      priorAttempts: [],
+      diagnosis: "The paper claims macro-F1, but the code calculates accuracy, which can hide minority-class errors.",
+      revisionPlan: "Use f1_score instead.",
+      safetyIdentifier: "test",
+    });
+    expect(result.status).toBe("developing");
+    expect(result.masteredConcepts).toEqual([]);
   });
 
   it("gives one hint, then stops hinting after an unsuccessful attempt", () => {

@@ -82,7 +82,7 @@ function failure(code: string, message: string, status: number, withDemo = false
     event: "review.failed",
     code,
     message,
-    ...(withDemo ? { cachedDemoUrl: "/?demo=leaflens" } : {}),
+    ...(withDemo ? { cachedDemoUrl: "/?demo=leaflens&mode=cached" } : {}),
   }, status);
 }
 
@@ -146,7 +146,7 @@ function liveReviewResponse(request: Request, input: {
             event: "review.failed",
             code: unavailable ? "live-unavailable" : "live-review-failed",
             message: cause instanceof Error ? cause.message : "The live review failed.",
-            cachedDemoUrl: "/?demo=leaflens",
+            cachedDemoUrl: "/?demo=leaflens&mode=cached",
           });
         }
       } finally {

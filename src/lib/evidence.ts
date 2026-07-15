@@ -57,7 +57,11 @@ export function verifyTextAnchor(text: string, anchor: VerifiedAnchor): Verified
   const lines = text.split(/\r?\n/);
   if (anchor.lineEnd > lines.length) return { ...anchor, verification: "model-located" };
   const selected = lines.slice(anchor.lineStart - 1, anchor.lineEnd).join("\n");
-  return { ...anchor, verification: selected.includes(anchor.excerpt) ? "verified" : "model-located" };
+  if (!selected.includes(anchor.excerpt)) return { ...anchor, verification: "model-located" };
+  const lineSpan = anchor.lineStart === anchor.lineEnd
+    ? `${anchor.lineStart}`
+    : `${anchor.lineStart}-${anchor.lineEnd}`;
+  return { ...anchor, locator: `${anchor.fileName}:${lineSpan}`, verification: "verified" };
 }
 
 export function verifyReviewAnchors(review: ReviewResult, files: Map<string, string>): ReviewResult {

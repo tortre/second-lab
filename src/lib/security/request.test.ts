@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createSafetyIdentifier, isSameOriginRequest } from "./request";
+import { createSafetyIdentifier, isSameOriginRequest, readBoundedJson, RequestBodyTooLargeError } from "./request";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -34,5 +34,18 @@ describe("request security", () => {
     const safetyId = createSafetyIdentifier("opaque-session-id");
     expect(safetyId).toMatch(/^[a-f0-9]{64}$/);
     expect(safetyId).not.toContain("opaque-session-id");
+  });
+
+  it("bounds streamed JSON even when Content-Length is missing", async () => {
+    const accepted = await readBoundedJson(new Request("https://secondlab.example/api/test", {
+      method: "POST",
+      body: JSON.stringify({ ok: true }),
+    }), 64);
+    expect(accepted).toEqual({ ok: true });
+
+    await expect(readBoundedJson(new Request("https://secondlab.example/api/test", {
+      method: "POST",
+      body: JSON.stringify({ value: "x".repeat(100) }),
+    }), 64)).rejects.toBeInstanceOf(RequestBodyTooLargeError);
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 
 import { MessageResponse } from "@/components/ai-elements/message";
-import { Source, Sources, SourcesContent, SourcesTrigger } from "@/components/ai-elements/sources";
+import { Source } from "@/components/ai-elements/sources";
+import { choosePreparedDemoEntry, type PreparedDemoEntry } from "@/lib/demo-entry";
 import { createLearningReceipt, learningReceiptMarkdown, type AttemptsByFinding } from "@/lib/learning-receipt";
 import { readReviewStream } from "@/lib/ndjson";
 import {
@@ -18,6 +19,7 @@ import {
   Bot,
   BrainCircuit,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleAlert,
   CircleDot,
@@ -103,6 +105,7 @@ export function SecondLabWorkspace() {
   const [codeFiles, setCodeFiles] = useState<File[]>([]);
   const [dragging, setDragging] = useState(false);
   const [accessCode, setAccessCode] = useState("");
+  const [showLiveDemoAccess, setShowLiveDemoAccess] = useState(false);
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [attempts, setAttempts] = useState<AttemptsByFinding>({});
@@ -120,17 +123,22 @@ export function SecondLabWorkspace() {
   }, []);
 
   useEffect(() => {
-    if (autoStarted.current || typeof window === "undefined") return;
+    if (autoStarted.current || !health || typeof window === "undefined") return;
     if (new URLSearchParams(window.location.search).get("demo") === "leaflens") {
       autoStarted.current = true;
       document.getElementById("try-student-study")?.click();
     }
-  }, []);
+  }, [health]);
 
   const selectedFinding = review?.findings.find((finding) => finding.id === selectedFindingId) ?? review?.findings[0] ?? null;
+  const selectedFindingIndex = review && selectedFinding
+    ? Math.max(0, review.findings.findIndex((finding) => finding.id === selectedFinding.id))
+    : 0;
   const sourceMap = useMemo(() => new Map(review?.sources.map((source) => [source.id, source]) ?? []), [review]);
   const sourceLinks = review?.sources.map((source) => source.url) ?? [];
   const masteryCount = review?.findings.filter((finding) => attempts[finding.id]?.at(-1)?.status === "mastered").length ?? 0;
+  const unresolvedCount = review ? review.findings.length - masteryCount : 0;
+  const fullyMastered = Boolean(review && review.findings.length > 0 && unresolvedCount === 0);
 
   function reset() {
     abortRef.current?.abort();
@@ -144,6 +152,7 @@ export function SecondLabWorkspace() {
     setCodeFiles([]);
     setDragging(false);
     setAccessCode("");
+    setShowLiveDemoAccess(false);
     setAttempts({});
     setDrafts({});
     setRevealed(new Set());
@@ -186,7 +195,7 @@ export function SecondLabWorkspace() {
     if (!response.ok) throw new Error(result.error || "The access code was not accepted.");
   }
 
-  async function startReview(mode: EntryMode) {
+  async function startReview(mode: EntryMode, preparedEntry: Exclude<PreparedDemoEntry, "request-access"> = "cached") {
     if (mode === "upload" && (!manuscript || codeFiles.length === 0)) {
       setEntryMode("upload");
       setError(!manuscript
@@ -204,9 +213,7 @@ export function SecondLabWorkspace() {
     setError(null);
     setCachedDemoUrl(null);
     try {
-      const runPreparedLive = mode === "prepared"
-        && Boolean(health?.liveReview)
-        && (!health?.accessRequired || Boolean(accessCode.trim()));
+      const runPreparedLive = mode === "prepared" && preparedEntry === "live";
       if (mode === "upload" || (runPreparedLive && health?.accessRequired)) {
         await unlockLiveReview();
       }
@@ -259,6 +266,20 @@ export function SecondLabWorkspace() {
     }
   }
 
+  function openPreparedDemo() {
+    if (!health) return;
+    const forceCached = typeof window !== "undefined"
+      && new URLSearchParams(window.location.search).get("mode") === "cached";
+    const entry = choosePreparedDemoEntry(health, forceCached);
+    if (entry === "request-access") {
+      setShowLiveDemoAccess(true);
+      setError(null);
+      return;
+    }
+    setShowLiveDemoAccess(false);
+    void startReview("prepared", entry);
+  }
+
   async function submitCoach(finding: EvidenceFinding) {
     if (!review) return;
     const draft = drafts[finding.id] ?? emptyDraft;
@@ -308,7 +329,17 @@ export function SecondLabWorkspace() {
   function exportReceipt() {
     if (!review) return;
     const receipt = createLearningReceipt(review, attempts);
-    downloadText("second-lab-mastery-receipt.md", learningReceiptMarkdown(receipt));
+    const fileName = receipt.unresolvedConcerns.length === 0
+      ? "second-lab-mastery-receipt.md"
+      : "second-lab-learning-receipt.md";
+    downloadText(fileName, learningReceiptMarkdown(receipt));
+  }
+
+  function selectFindingAt(index: number) {
+    const finding = review?.findings[index];
+    if (!finding) return;
+    setSelectedFindingId(finding.id);
+    document.getElementById("finding-lesson")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -329,7 +360,7 @@ export function SecondLabWorkspace() {
             <div className="landing-view simple-landing">
               <section className="simple-hero">
                 <h1>Check your research.</h1>
-                <p>Drop in whatever you have.</p>
+                <p>Drop in your paper and code.</p>
               </section>
 
               <section className="simple-start" id="project-upload">
@@ -359,9 +390,17 @@ export function SecondLabWorkspace() {
                 {manuscript && codeFiles.length > 0 && <button className="primary-button simple-review-button" onClick={() => void startReview("upload")}>
                   <Sparkles size={18} /> Check my research
                 </button>}
-                <button id="try-student-study" className="simple-demo-link" onClick={() => void startReview("prepared")}>
+                <button id="try-student-study" className="simple-demo-link" disabled={!health} onClick={openPreparedDemo}>
                   No project? Try the demo <ArrowRight size={14} />
                 </button>
+                {showLiveDemoAccess && <div className="simple-demo-access">
+                  <div><LockKeyhole size={17} /><span><strong>Run the live demo</strong><small>Enter the judge code for the GPT-5.6 review.</small></span></div>
+                  <label><span>Judge code</span><input autoFocus type="password" value={accessCode} onChange={(event) => setAccessCode(event.target.value)} autoComplete="off" /></label>
+                  <div className="simple-demo-actions">
+                    <button className="primary-button" disabled={!accessCode.trim()} onClick={() => void startReview("prepared", "live")}><Sparkles size={16} /> Run live demo</button>
+                    <button className="secondary-button" onClick={() => { setShowLiveDemoAccess(false); void startReview("prepared", "cached"); }}>Use instant demo</button>
+                  </div>
+                </div>}
               </section>
             </div>
           )}
@@ -384,15 +423,18 @@ export function SecondLabWorkspace() {
                 <span className={`mode-pill ${review.provenance.executionMode === "cached-demo" ? "cached" : "live"}`}>{review.provenance.executionMode}</span>
               </div>
 
-              <div className="result-stats">
-                <div><strong>{review.findings.filter((item) => item.status === "confirmed").length}</strong><span>confirmed</span></div>
-                <div><strong>{review.findings.filter((item) => item.status === "concern").length}</strong><span>concerns</span></div>
-                <div><strong>{review.sources.length}</strong><span>displayed sources</span></div>
-                <div><strong>{masteryCount}/{review.findings.length}</strong><span>concepts defended</span></div>
+              <div className="result-progress" aria-label={`${review.findings.length} findings; ${masteryCount} explained`}>
+                <span><strong>{review.findings.length}</strong> things to check</span>
+                <span><strong>{masteryCount}</strong> explained</span>
+                <span><strong>{unresolvedCount}</strong> left</span>
               </div>
 
-              <div className="finding-tabs" aria-label="Review findings">
-                {review.findings.map((finding, index) => <button aria-pressed={selectedFinding?.id === finding.id} className={selectedFinding?.id === finding.id ? "finding-tab active" : "finding-tab"} key={finding.id} onClick={() => setSelectedFindingId(finding.id)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{finding.title}</strong><small>{finding.category.replaceAll("-", " ")}</small></div><b className={`status ${finding.status}`}>{finding.status}</b><ChevronRight size={15} /></button>)}
+              <div className="finding-navigator" aria-label="Move between findings">
+                <div><span>Finding {selectedFindingIndex + 1} of {review.findings.length}</span><strong>{selectedFinding?.title}</strong></div>
+                <div>
+                  <button className="secondary-button" disabled={selectedFindingIndex === 0} onClick={() => selectFindingAt(selectedFindingIndex - 1)}><ChevronLeft size={16} /> Previous</button>
+                  <button className="primary-button" disabled={selectedFindingIndex >= review.findings.length - 1} onClick={() => selectFindingAt(selectedFindingIndex + 1)}>Next <ChevronRight size={16} /></button>
+                </div>
               </div>
 
               {selectedFinding && (
@@ -410,7 +452,7 @@ export function SecondLabWorkspace() {
               )}
 
               {error && <ErrorBanner message={error} cachedDemoUrl={cachedDemoUrl} />}
-              <div className="receipt-bar"><span><GraduationCap size={21} /></span><div><strong>Mastery receipt + mentor handoff</strong><p>Attempts, final explanations, revision plans, citations, mastered concepts, unresolved concerns, hashes, usage, latency, and cleanup.</p></div><button className="secondary-button" disabled={Object.keys(attempts).length === 0} onClick={exportReceipt}><Download size={16} /> Export receipt</button></div>
+              <div className="receipt-bar"><span><GraduationCap size={21} /></span><div><strong>{fullyMastered ? "Mastery receipt + mentor handoff" : "Learning receipt + mentor handoff"}</strong><p>{unresolvedCount === 0 ? "All findings are mastered. Export the completed learning record for a mentor." : `${unresolvedCount} ${unresolvedCount === 1 ? "finding" : "findings"} unresolved. Export attempts, feedback, sources, and next steps.`}</p></div><button className="secondary-button" disabled={Object.keys(attempts).length === 0} onClick={exportReceipt}><Download size={16} /> {fullyMastered ? "Export mastery receipt" : "Export learning receipt"}</button></div>
             </div>
           )}
         </section>
@@ -449,25 +491,25 @@ function FindingWorkspace({ finding, sources, draft, attempts, revealed, busy, o
   const links = sources.map((source) => source.url);
   const coachHint = latest?.status !== "mastered" ? latest?.nextHint : null;
   return (
-    <section className="finding-workspace">
+    <section className="finding-workspace" id="finding-lesson">
       <div className="finding-overview">
         <div className="finding-title-row"><span className={`status ${finding.status}`}>{finding.status}</span><span className={`severity ${finding.severity}`}>{finding.severity}</span><strong>{finding.title}</strong></div>
         <div className="evidence-map">
-          <div><span className="map-label"><BookOpen size={14} /> Claim</span><ModelCopy links={links}>{finding.claim}</ModelCopy></div>
-          <div><span className="map-label"><Search size={14} /> Evidence</span><ModelCopy links={links}>{finding.evidenceSummary}</ModelCopy></div>
+          <div><span className="map-label"><BookOpen size={16} /> Paper says</span><ModelCopy links={links}>{finding.claim}</ModelCopy></div>
+          <div><span className="map-label"><Search size={16} /> Code shows</span><ModelCopy links={links}>{finding.evidenceSummary}</ModelCopy></div>
           <div><span className="map-label"><BrainCircuit size={14} /> Why it matters</span><ModelCopy links={links}>{finding.whyItMatters}</ModelCopy></div>
         </div>
-        <div className="anchors">
-          {finding.anchors.map((anchor, index) => <div className="anchor-card" key={`${anchor.fileName}-${anchor.locator}-${index}`}><div><span>{anchor.kind === "code" ? <FileCode2 size={14} /> : <FileText size={14} />}{anchor.locator}</span><b className={anchor.verification === "verified" ? "verified" : "located"}>{anchor.verification}</b></div><pre><code>{anchor.excerpt}</code></pre></div>)}
-        </div>
-        <Sources className="finding-sources" defaultOpen>
-          <SourcesTrigger count={sources.length} />
-          <SourcesContent>{sources.map((source) => <Source className="citation-link" href={source.url} title={source.title} key={source.id}><Globe2 size={14} /><span>{source.title}</span><small>{source.verification}</small><ExternalLink size={12} /></Source>)}</SourcesContent>
-        </Sources>
+        <details className="evidence-details">
+          <summary>Show the proof <small>{finding.anchors.length} excerpts · {sources.length} sources</small></summary>
+          <div className="anchors">
+            {finding.anchors.map((anchor, index) => <div className="anchor-card" key={`${anchor.fileName}-${anchor.locator}-${index}`}><div><span>{anchor.kind === "code" ? <FileCode2 size={14} /> : <FileText size={14} />}{anchor.locator}</span><b className={anchor.verification === "verified" ? "verified" : "located"}>{anchor.verification}</b></div><pre><code>{anchor.excerpt}</code></pre></div>)}
+          </div>
+          <div className="finding-sources"><span className="map-label"><Globe2 size={15} /> Sources</span>{sources.map((source) => <Source className="citation-link" href={source.url} title={source.title} key={source.id}><Globe2 size={14} /><span>{source.title}</span><small>{source.verification}</small><ExternalLink size={12} /></Source>)}</div>
+        </details>
       </div>
 
       <div className="coach-panel">
-        <div className="coach-heading"><span><GraduationCap size={18} /></span><div><strong>Defend, then revise</strong><p>The direct correction is hidden. Explain the methodological consequence first.</p></div><b>{attempts.length}/2 attempts</b></div>
+        <div className="coach-heading"><span><GraduationCap size={18} /></span><div><strong>Your turn</strong><p>Explain the problem, then say exactly what you would change.</p></div><b>{attempts.length}/2 tries</b></div>
         <label><span>Why does this matter?</span><textarea rows={3} value={draft.diagnosis} onChange={(event) => onDraft({ ...draft, diagnosis: event.target.value })} placeholder="Connect the cited mismatch to the validity of the claim…" disabled={latest?.status === "mastered"} /></label>
         <label><span>What would you revise?</span><textarea rows={3} value={draft.revisionPlan} onChange={(event) => onDraft({ ...draft, revisionPlan: event.target.value })} placeholder="Propose a concrete change and how you would verify it…" disabled={latest?.status === "mastered"} /></label>
         {latest && <div className={`coach-feedback ${latest.status}`}><div><Lightbulb size={17} /><strong>{statusLabel(latest.status)}</strong></div><ModelCopy links={links}>{latest.feedback}</ModelCopy>{coachHint && <p className="hint"><Lightbulb size={14} /> Hint: {coachHint}</p>}</div>}

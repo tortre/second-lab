@@ -29,7 +29,7 @@ export const verifiedAnchorObjectSchema = z.object({
   kind: z.enum(["manuscript", "code"]),
   fileName: z.string().min(1),
   locator: z.string().min(1),
-  excerpt: z.string().min(1),
+  excerpt: z.string().trim().min(8, "Evidence excerpts must contain meaningful text."),
   lineStart: z.number().int().positive().optional(),
   lineEnd: z.number().int().positive().optional(),
   page: z.number().int().positive().optional(),

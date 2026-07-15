@@ -13,8 +13,15 @@ export function isJudgeAccessRequired() {
   return Boolean(process.env.JUDGE_ACCESS_CODE?.trim());
 }
 
+export function isAccessConfigurationSecure() {
+  if (process.env.NODE_ENV !== "production" || !isJudgeAccessRequired()) return true;
+  const accessCode = process.env.JUDGE_ACCESS_CODE?.trim() ?? "";
+  const signingSecret = process.env.SESSION_SIGNING_SECRET?.trim() ?? "";
+  return accessCode.length >= 16 && signingSecret.length >= 32;
+}
+
 export function isLiveReviewAvailable() {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+  return Boolean(process.env.OPENAI_API_KEY?.trim()) && isAccessConfigurationSecure();
 }
 
 export function isMultiAgentAvailable() {

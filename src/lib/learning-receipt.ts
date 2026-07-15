@@ -35,6 +35,9 @@ export function createLearningReceipt(review: ReviewResult, attemptsByFinding: A
 }
 
 export function learningReceiptMarkdown(receipt: LearningReceipt) {
+  const title = receipt.unresolvedConcerns.length === 0
+    ? "Second Lab mastery receipt"
+    : "Second Lab learning receipt";
   const attempts = receipt.attempts.map((entry) => {
     const history = entry.attempts.map((attempt) =>
       `  - Attempt ${attempt.attemptNumber}: **${attempt.status}** — ${escapeMarkdown(attempt.feedback)}`,
@@ -48,7 +51,7 @@ export function learningReceiptMarkdown(receipt: LearningReceipt) {
     `- ${escapeMarkdown(hash.fileName)}: \`${hash.sha256}\``,
   ).join("\n");
 
-  return `# Second Lab mastery receipt
+  return `# ${title}
 
 ## Project
 

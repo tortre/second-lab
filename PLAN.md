@@ -12,14 +12,14 @@ The polished workspace and manuscript/code review foundation remain. This build 
 
 ### Ship
 
-- Two visible entry actions on desktop and mobile: **Try a student study** and **Review my project**.
+- One obvious entry on desktop and mobile: drop in a paper plus code, with **No project? Try the demo** directly underneath.
 - Synthetic LeafLens fixture with metric mismatch, leakage, and unsupported baseline defects, plus a clean control.
 - Claim-evidence-code findings labeled `confirmed`, `concern`, or `unverified`.
 - Deterministically verified text/code anchors and visibly `model-located` PDF/DOCX anchors.
 - Native-source citation allowlisting and HTTPS-only links.
 - GPT-5.6 Multi-agent review with three specialists, a validating root, and a stable single-agent fallback.
 - Honest `multi-agent`, `single-agent-fallback`, and `cached-demo` execution labels.
-- Defend/revise coaching with progressive hinting, two-attempt reveal, and a mastery receipt.
+- Defend/revise coaching with progressive hinting, two-attempt reveal, and a learning receipt that becomes a mastery receipt only when every finding is mastered.
 - Origin, access, concurrency, input/output, hashed-safety-identifier, cleanup, and deployment-rate-limit controls.
 - Six-case evaluation harness, dated scorecard, responsive browser verification, documentation, and submission assets.
 
@@ -68,7 +68,7 @@ The polished workspace and manuscript/code review foundation remain. This build 
 - **July 14:** record baseline; confirm guardian-entry structure with Devpost; request Codex credits; start dated build log.
 - **July 15:** LeafLens fixture, Education positioning, evidence schema, and verified citations.
 - **July 16–17:** streamed Multi-agent review, stable fallback, cleanup, access controls, and firewall runbook.
-- **July 18:** defend/revise coaching, mastery receipt, evaluation harness, and deployment candidate.
+- **July 18:** defend/revise coaching, learning receipt, evaluation harness, and deployment candidate.
 - **July 19:** six-case run and 1–2 user sessions; fix the largest trust/usability issue.
 - **July 20:** finalize README, license, build log, screenshots, Devpost copy, and public 2:45–2:55 demo video; submit early.
 - **July 21:** buffer only; deadline is 5:00 PM PT / 7:00 PM CT.

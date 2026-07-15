@@ -115,4 +115,22 @@ describe("POST /api/review", () => {
     await reader!.cancel();
     expect(reviewSignal?.aborted).toBe(true);
   });
+
+  it("links live failures to the explicitly cached recovery path", async () => {
+    delete process.env.JUDGE_ACCESS_CODE;
+    reviewMocks.runLiveReview.mockRejectedValue(new Error("review failed"));
+    const form = new FormData();
+    form.append("manuscript", new File(["# paper"], "paper.md", { type: "text/markdown" }));
+    form.append("code", new File(["print('ok')"], "analysis.py", { type: "text/x-python" }));
+    const response = await POST(new Request("http://localhost/api/review", {
+      method: "POST",
+      headers: { origin: "http://localhost" },
+      body: form,
+    }));
+    const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+    expect(events.at(-1)).toMatchObject({
+      event: "review.failed",
+      cachedDemoUrl: "/?demo=leaflens&mode=cached",
+    });
+  });
 });

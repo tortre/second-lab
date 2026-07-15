@@ -46,4 +46,23 @@ describe("judge access endpoint", () => {
     expect(cookie).toContain("HttpOnly");
     expect(cookie).toContain("SameSite=strict");
   });
+
+  it("rejects an oversized streamed body without relying on Content-Length", async () => {
+    vi.stubEnv("JUDGE_ACCESS_CODE", "correct-code");
+    const response = await POST(new Request("https://secondlab.example/api/access", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://secondlab.example" },
+      body: JSON.stringify({ code: "x".repeat(5_000) }),
+    }));
+    expect(response.status).toBe(413);
+  });
+
+  it("fails closed on weak production access secrets", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("JUDGE_ACCESS_CODE", "short-code");
+    vi.stubEnv("SESSION_SIGNING_SECRET", "also-too-short");
+    const response = await POST(accessRequest({ code: "short-code" }));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("set-cookie")).toBeNull();
+  });
 });

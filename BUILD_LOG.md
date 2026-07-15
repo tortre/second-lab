@@ -27,8 +27,8 @@ This file separates verified work from intended work. A checked item must have r
 - [x] LeafLens fixtures and cached result verified with `pnpm demo:generate`, fixture tests, and `pnpm eval:cached`.
 - [x] Shared evidence, coaching, and receipt schemas verified by TypeScript and Zod-backed tests.
 - [x] Multi-agent event parsing, exact-three-specialist enforcement, timeout/cancellation behavior, and stable fallback implementation verified in automated tests. A production model smoke test is still pending.
-- [x] Defend/revise UI and downloadable mastery receipt verified in real desktop and mobile browsers.
-- [x] Security, citation allowlisting, anchoring, cancellation, timeout, bounded upload, and cleanup failure paths verified by the 40-test suite.
+- [x] Defend/revise UI and downloadable learning receipt verified in real desktop and mobile browsers; mastery wording is reserved for a fully mastered review.
+- [x] Security, citation allowlisting, anchoring, cancellation, timeout, bounded upload, and cleanup failure paths verified by the automated suite.
 - [x] Responsive prepared cached-demo browser flow verified at desktop and mobile sizes.
 - [ ] Responsive live GPT-5.6 browser flow verified with production credentials.
 - [ ] Live Vercel GPT-5.6 smoke test recorded.
@@ -39,7 +39,10 @@ This file separates verified work from intended work. A checked item must have r
 
 - Initial baseline commit hash: `85a09f9`
 - Education implementation commit hash: `1e6c2e4`
+- Simplified local landing commit hash: `e12e140`
+- Submission-readiness fixes: current dated commit in `git log` (local only; no remote configured)
 - Production deployment URL: `https://second-lab.vercel.app`
+- Judge-accessible repository URL: `PENDING — no git remote is configured`
 - Live smoke-test timestamp and response ID: `PENDING`
 - Cached evaluation artifact/command: `docs/EVALUATION_SCORECARD.md` / `pnpm eval:cached`
 - Live evaluation artifact/command: `PENDING`
@@ -55,7 +58,7 @@ Do not turn any pending item into a submission claim until it is replaced by evi
 ### Automated gates
 
 - [x] `pnpm verify` regenerated five deterministic demo artifacts.
-- [x] Vitest: 15 files, 40 tests passed.
+- [x] Vitest: 16 files, 56 tests passed after the submission-readiness fixes.
 - [x] TypeScript: `tsc --noEmit` passed.
 - [x] ESLint passed.
 - [x] Next.js 16 production build completed with `/`, `/api/access`, `/api/coach`, `/api/health`, and `/api/review`.
@@ -63,15 +66,38 @@ Do not turn any pending item into a submission claim until it is replaced by evi
 
 ### Browser evidence
 
-- [x] 1280 × 900: landing, both entry actions, cached review, four finding maps, clickable sources, first hint, two-attempt reveal, mastered response, and receipt download passed with no page errors or framework overlay.
-- [x] 390 × 844: both entry actions appeared in the first viewport; landing and results had no horizontal overflow; mastery and receipt download passed with no page errors.
+- [x] Earlier 1280 × 900 flow: landing, cached review, four finding maps, clickable sources, first hint, two-attempt reveal, mastered response, and receipt download passed with no page errors or framework overlay.
+- [x] Earlier 390 × 844 flow: landing and results had no horizontal overflow; coaching and receipt download passed with no page errors.
 - [x] Client cancellation returned to the landing screen with “Review cancelled. No fallback was started.”
 - [x] Missing manuscript and missing code validation appeared before a live request.
 - [x] A live upload without a configured API key failed honestly and displayed the cached LeafLens recovery link.
 
 ### Honest boundary
 
-The local browser environment had no `OPENAI_API_KEY`, so these checks do not count as the required live GPT-5.6 smoke test, live Multi-agent trail, or live six-case evaluation. The prepared button now selects the live multipart LeafLens path only when live review and access are available; otherwise it uses the public `cached-demo` result.
+The local browser environment had no `OPENAI_API_KEY`, so these checks do not count as the required live GPT-5.6 smoke test, live Multi-agent trail, or live six-case evaluation. The demo now waits for health and explicitly asks a gated judge to choose **Run live demo** or **Use instant demo**, so it cannot silently select cached output while access is required.
+
+## 2026-07-14 — Submission-readiness audit and local-only usability pass
+
+- [x] Commit `e12e140` replaced the marketing-heavy landing page with one drop zone and **No project? Try the demo**.
+- [x] Local landing verified at 1280 × 720 and 390 × 844 with the demo link visible, no horizontal overflow, no framework overlay, and no browser console errors.
+- [x] Cached LeafLens opened in one click and displayed all four source-backed findings and clickable citations.
+- [x] A weak first coaching attempt returned `not-yet` plus one hint; two unsuccessful attempts unlocked the evidence-backed correction.
+- [x] Public cached coaching is now bound to the server-owned LeafLens fixture, forced deterministic, and cannot be converted into a paid GPT call by a forged `cached-demo` request.
+- [x] The cached mastery heuristic now requires evidence linkage, methodological consequence, a specific revision, and a checkable verification step; `accuracy` plus `f1_score` no longer earns mastery.
+- [x] Verified text/code locators are recomputed server-side, and evidence excerpts require at least eight non-whitespace characters.
+- [x] Results were simplified locally to one finding at a time with **Paper says**, **Code shows**, **Why it matters**, and collapsed proof.
+- [x] Learning-receipt wording and unresolved counts are shown until every finding is mastered.
+- [x] `pnpm verify`, `pnpm eval:cached`, and `git diff --check` passed after these fixes: 16 files, 56 tests, a clean production build, 8/8 seeded fixture findings, and 0 unsupported fixture findings.
+- [ ] Final post-change browser pass for the one-finding results view must be repeated; the local browser connection rejected the reload after the code change.
+- [ ] The local-only interface and fixes have not been deployed, per the project owner's explicit instruction.
+
+### Technical release issues still open
+
+- [ ] Reserve bounded upload and cleanup time inside the 270-second Function window; the current 150-second Multi-agent plus 90-second fallback budgets leave only 30 seconds for both.
+- [ ] Preserve metadata-only cleanup status when a live review fails before a receipt exists.
+- [ ] Make the live evaluation independently compare displayed citations with preserved native source URLs.
+- [x] Bound chunked JSON bodies for `/api/access` and `/api/coach` and fail closed unless production judge/session secrets meet minimum lengths.
+- [ ] Throttle `/api/access` attempts at the deployment firewall.
 
 ## 2026-07-14 — Vercel deployment verification
 
@@ -82,4 +108,4 @@ The local browser environment had no `OPENAI_API_KEY`, so these checks do not co
 - [x] The deployed cached LeafLens review streamed `review.started`, `review.mode`, actual fixture-agent events, six `source.found` events, and `review.completed`.
 - [x] The deployed coaching endpoint assessed an evidence-based metric diagnosis and revision plan as `mastered`.
 - [x] Vercel reported no runtime error clusters during the deployment smoke-test window.
-- [ ] Live GPT-5.6 smoke test: blocked until `OPENAI_API_KEY`, `JUDGE_ACCESS_CODE`, and `SESSION_SECRET` are configured in Vercel.
+- [ ] Live GPT-5.6 smoke test: blocked until `OPENAI_API_KEY`, `JUDGE_ACCESS_CODE`, and `SESSION_SIGNING_SECRET` are configured in Vercel.

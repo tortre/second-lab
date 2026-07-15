@@ -46,6 +46,7 @@ Do not replace `Pending` with estimates. Record the exact commit, resolved model
 - A seeded category counts as recalled only when a finding identifies the same methodological defect and points to the relevant supplied evidence.
 - A finding is unsupported when its severity/status is stronger than its verified anchors and cited evidence justify.
 - Citation validity is the share of displayed web URLs that are HTTPS and occur in the native web-search source set for that response.
+- Before the live run, preserve the raw native source URLs in a private evaluation artifact and compare against that set directly. Do not treat the server's own `verification` label as an independent validity check.
 - The clean-control gate concerns unsupported **high-severity** findings; lower-severity concerns still require inspectable evidence.
 - Cost is estimated from recorded input/output tokens and the model price at run time. Record the pricing source date.
 - Supply `EVAL_INPUT_COST_PER_MILLION`, `EVAL_OUTPUT_COST_PER_MILLION`, and a dated `EVAL_PRICING_SOURCE` for the live harness; it derives cost from receipt token totals rather than inventing a provenance field.

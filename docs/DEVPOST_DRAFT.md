@@ -18,7 +18,7 @@ Education
 
 Most AI writing tools help students produce an answer. Second Lab teaches a harder and more durable skill: defending whether a research claim is actually supported.
 
-A student submits a manuscript and its code—or opens the synthetic LeafLens study. GPT-5.6 coordinates a claim/code mapper, a literature and dataset researcher, and a methods/evaluation auditor. A validating root reconciles their work into a claim–evidence–code map with inspectable excerpts, anchors, and citations. The correction stays hidden while the student explains why the issue matters and proposes a checkable revision. After assessment and one progressive hint, the student earns or reveals an evidence-backed correction and exports a mastery receipt for a mentor.
+A student submits a manuscript and its code—or opens the synthetic LeafLens study. GPT-5.6 coordinates a claim/code mapper, a literature and dataset researcher, and a methods/evaluation auditor. A validating root reconciles their work into a claim–evidence–code map with inspectable excerpts, anchors, and citations. The correction stays hidden while the student explains why the issue matters and proposes a checkable revision. After assessment and one progressive hint, the student earns or reveals an evidence-backed correction and exports a learning receipt for a mentor.
 
 Second Lab does not write the paper, execute uploaded code, or claim to certify scientific truth.
 
@@ -30,11 +30,11 @@ Second Lab turns pre-submission review into a learning loop. The goal is not “
 
 ## What it does
 
-- **Try a student study:** opens LeafLens, a synthetic leaf-species classifier with a metric mismatch, augmentation leakage, an unsupported baseline claim, and a reproducibility concern. With judge access it can run live; otherwise it uses an honestly labeled cached result.
-- **Review my project:** accepts one manuscript, at least one code file, and optional context, then streams the real review trail.
+- **No project? Try the demo:** opens LeafLens, a synthetic leaf-species classifier with a metric mismatch, augmentation leakage, an unsupported baseline claim, and a reproducibility concern. When live review is available, the judge explicitly chooses the live or instant cached path.
+- **Drop in a project:** accepts one manuscript and at least one code file, then streams the review trail.
 - **Evidence map:** connects each finding to exact manuscript and code excerpts, deterministic line checks or visible `model-located` anchors, and HTTPS citations from native web-search output.
 - **Defend and revise:** asks why the issue matters and what the student would change; GPT-5.6 grades understanding as `not-yet`, `developing`, or `mastered` and enforces a one-hint/two-attempt progression.
-- **Mentor handoff:** exports attempts, the final explanation and revision plan, mastered concepts, unresolved concerns, sources, hashes, model/response provenance, usage, latency, execution mode, and cleanup status.
+- **Mentor handoff:** exports attempts, the final explanation and revision plan, mastered concepts, unresolved concerns, sources, hashes, model/response provenance, usage, latency, execution mode, and cleanup status. It says learning receipt until every finding is mastered.
 
 ## How it was built
 
@@ -65,16 +65,16 @@ Second Lab does not run experiments, prove novelty, detect misconduct, certify a
 ## Links
 
 - Project: [Second Lab](https://second-lab.vercel.app)
-- Public repository: **[PENDING]**
+- Judge-accessible repository: **[PENDING]**
 - Demo video: **[PENDING]**
 - Evaluation artifact: `/demo/evaluation-scorecard.json`
 
 ## Screenshot set
 
-1. Desktop landing page with both entry actions and LeafLens card.
-2. Mobile 390px landing page with both actions in the first viewport.
-3. Real specialist trail with `multi-agent` label.
-4. Claim–evidence–code map with verified anchors and native citation.
+1. Desktop landing page with the single drop zone and demo link.
+2. Mobile 390px landing page with both choices in the first viewport.
+3. Real specialist trail with `multi-agent` label — capture only after the live smoke test.
+4. One-finding lesson showing “Paper says,” “Code shows,” and the collapsed proof panel.
 5. First coaching attempt with progressive hint.
 6. Mastered revision and receipt.
 7. Dated live evaluation scorecard.
