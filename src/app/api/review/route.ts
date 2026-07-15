@@ -1,6 +1,6 @@
 import { getCachedLeafLensReview } from "@/lib/leaflens-cached";
 import { createLeafLensReviewFiles } from "@/lib/demo/leaflens-project";
-import { LiveReviewUnavailableError, ReviewCancelledError, MAX_TOTAL_BYTES, runLiveReview } from "@/lib/review-engine";
+import { LiveReviewExecutionError, LiveReviewUnavailableError, ReviewCancelledError, MAX_TOTAL_BYTES, runLiveReview } from "@/lib/review-engine";
 import type { ReviewStreamEvent } from "@/lib/review-types";
 import {
   acquireReviewLease,
@@ -147,6 +147,7 @@ function liveReviewResponse(request: Request, input: {
             code: unavailable ? "live-unavailable" : "live-review-failed",
             message: cause instanceof Error ? cause.message : "The live review failed.",
             cachedDemoUrl: "/?demo=leaflens&mode=cached",
+            ...(cause instanceof LiveReviewExecutionError ? { cleanup: cause.cleanup } : {}),
           });
         }
       } finally {

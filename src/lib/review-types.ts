@@ -188,4 +188,10 @@ export type ReviewStreamEvent =
   | { event: "source.found"; agent: string; source: EvidenceSource }
   | { event: "agent.completed"; agent: string; detail: string }
   | { event: "review.completed"; review: ReviewResult }
-  | { event: "review.failed"; code: string; message: string; cachedDemoUrl?: string };
+  | {
+    event: "review.failed";
+    code: string;
+    message: string;
+    cachedDemoUrl?: string;
+    cleanup?: { status: "complete" | "partial"; failedDeletionCount: number };
+  };

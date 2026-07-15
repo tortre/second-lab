@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ReviewCancelledError,
+  CLEANUP_RESERVE_MS,
+  LIVE_REVIEW_BUDGET_MS,
+  SINGLE_AGENT_TIMEOUT_MS,
   cleanupWithRetry,
   createLinkedTimeout,
   extractNativeSources,
+  fallbackTimeoutForElapsed,
   hasExactSpecialistTrail,
   outputTextFromRoot,
   parseSpawnName,
@@ -94,6 +98,14 @@ describe("live review reliability", () => {
     const forbiddenFallback = vi.fn(async () => "single");
     await expect(runWithSingleAgentFallback(async () => { throw new ReviewCancelledError(); }, forbiddenFallback)).rejects.toBeInstanceOf(ReviewCancelledError);
     expect(forbiddenFallback).not.toHaveBeenCalled();
+  });
+
+  it("caps fallback time so cleanup keeps a reserved window", () => {
+    expect(fallbackTimeoutForElapsed(0)).toBe(SINGLE_AGENT_TIMEOUT_MS);
+    expect(fallbackTimeoutForElapsed(170_000)).toBe(
+      LIVE_REVIEW_BUDGET_MS - CLEANUP_RESERVE_MS - 170_000,
+    );
+    expect(fallbackTimeoutForElapsed(LIVE_REVIEW_BUDGET_MS)).toBe(0);
   });
 
   it("links parent cancellation and timeout signals", async () => {

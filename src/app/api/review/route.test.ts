@@ -133,4 +133,26 @@ describe("POST /api/review", () => {
       cachedDemoUrl: "/?demo=leaflens&mode=cached",
     });
   });
+
+  it("streams cleanup status when a live review fails after upload", async () => {
+    const { LiveReviewExecutionError } = await import("@/lib/review-engine");
+    delete process.env.JUDGE_ACCESS_CODE;
+    reviewMocks.runLiveReview.mockRejectedValue(new LiveReviewExecutionError(
+      new Error("review failed"),
+      { status: "partial", failedFileIds: ["file-one"] },
+    ));
+    const form = new FormData();
+    form.append("manuscript", new File(["# paper"], "paper.md", { type: "text/markdown" }));
+    form.append("code", new File(["print('ok')"], "analysis.py", { type: "text/x-python" }));
+    const response = await POST(new Request("http://localhost/api/review", {
+      method: "POST",
+      headers: { origin: "http://localhost" },
+      body: form,
+    }));
+    const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+    expect(events.at(-1)).toMatchObject({
+      event: "review.failed",
+      cleanup: { status: "partial", failedDeletionCount: 1 },
+    });
+  });
 });

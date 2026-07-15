@@ -58,7 +58,7 @@ Do not turn any pending item into a submission claim until it is replaced by evi
 ### Automated gates
 
 - [x] `pnpm verify` regenerated five deterministic demo artifacts.
-- [x] Vitest: 16 files, 56 tests passed after the submission-readiness fixes.
+- [x] Vitest: 16 files, 58 tests passed after the submission-readiness fixes.
 - [x] TypeScript: `tsc --noEmit` passed.
 - [x] ESLint passed.
 - [x] Next.js 16 production build completed with `/`, `/api/access`, `/api/coach`, `/api/health`, and `/api/review`.
@@ -87,14 +87,14 @@ The local browser environment had no `OPENAI_API_KEY`, so these checks do not co
 - [x] Verified text/code locators are recomputed server-side, and evidence excerpts require at least eight non-whitespace characters.
 - [x] Results were simplified locally to one finding at a time with **Paper says**, **Code shows**, **Why it matters**, and collapsed proof.
 - [x] Learning-receipt wording and unresolved counts are shown until every finding is mastered.
-- [x] `pnpm verify`, `pnpm eval:cached`, and `git diff --check` passed after these fixes: 16 files, 56 tests, a clean production build, 8/8 seeded fixture findings, and 0 unsupported fixture findings.
+- [x] `pnpm verify`, `pnpm eval:cached`, and `git diff --check` passed after these fixes: 16 files, 58 tests, a clean production build, 8/8 seeded fixture findings, and 0 unsupported fixture findings.
 - [ ] Final post-change browser pass for the one-finding results view must be repeated; the local browser connection rejected the reload after the code change.
 - [ ] The local-only interface and fixes have not been deployed, per the project owner's explicit instruction.
 
 ### Technical release issues still open
 
-- [ ] Reserve bounded upload and cleanup time inside the 270-second Function window; the current 150-second Multi-agent plus 90-second fallback budgets leave only 30 seconds for both.
-- [ ] Preserve metadata-only cleanup status when a live review fails before a receipt exists.
+- [x] Reserve bounded upload and cleanup time inside the 270-second Function window: uploads have a 20-second bound, cleanup keeps a 10-second reserve with parallel 3-second deletion attempts, and fallback uses only the remaining time up to 90 seconds.
+- [x] Preserve metadata-only cleanup status in `review.failed` when a live review fails before a receipt exists.
 - [ ] Make the live evaluation independently compare displayed citations with preserved native source URLs.
 - [x] Bound chunked JSON bodies for `/api/access` and `/api/coach` and fail closed unless production judge/session secrets meet minimum lengths.
 - [ ] Throttle `/api/access` attempts at the deployment firewall.

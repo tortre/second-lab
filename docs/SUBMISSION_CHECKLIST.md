@@ -35,8 +35,8 @@ Deadline: **July 21, 2026 at 5:00 PM PT / 7:00 PM CT.** Target submission: July 
 - [ ] `store: false`, one-hour file expiration, deletion retries, and cleanup reporting are verified.
 - [ ] Origin, judge access, one-review-per-session, size/output, and hashed safety-identifier checks are verified.
 - [ ] Public cached coaching is bound to the server-owned fixture, forced deterministic, and cannot trigger a paid GPT call.
-- [ ] The 270-second Function budget reserves time for uploads and cleanup after Multi-agent and fallback; no stage can run unbounded.
-- [ ] A failed live review reports metadata-only cleanup status instead of losing it.
+- [ ] The bounded upload/fallback/cleanup budget is confirmed in one real live smoke test inside the 270-second Function window.
+- [ ] A failed live review's metadata-only cleanup status is confirmed in deployed NDJSON output.
 - [ ] Production access/session secrets meet the code-enforced minimum strength.
 - [ ] `/api/access` attempts are throttled at the deployment firewall.
 - [ ] Vercel Firewall rules from `docs/VERCEL_FIREWALL.md` are active and 429-tested.

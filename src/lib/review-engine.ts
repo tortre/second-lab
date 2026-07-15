@@ -32,6 +32,10 @@ export const MAX_TOTAL_BYTES = 4 * 1024 * 1024;
 export const MAX_CODE_FILES = 12;
 export const MULTI_AGENT_TIMEOUT_MS = 150_000;
 export const SINGLE_AGENT_TIMEOUT_MS = 90_000;
+export const LIVE_REVIEW_BUDGET_MS = 255_000;
+export const UPLOAD_TIMEOUT_MS = 20_000;
+export const CLEANUP_RESERVE_MS = 10_000;
+const DELETE_ATTEMPT_TIMEOUT_MS = 3_000;
 
 const manuscriptExtensions = new Set(["pdf", "docx", "md", "txt"]);
 const textManuscriptExtensions = new Set(["md", "txt"]);
@@ -138,6 +142,16 @@ export class LiveReviewUnavailableError extends Error {
   }
 }
 
+export class LiveReviewExecutionError extends Error {
+  readonly cleanup: { status: "complete" | "partial"; failedDeletionCount: number };
+
+  constructor(cause: unknown, cleanup: { status: "complete" | "partial"; failedFileIds: string[] }) {
+    super(cause instanceof Error ? cause.message : "The live review failed.", { cause });
+    this.name = "LiveReviewExecutionError";
+    this.cleanup = { status: cleanup.status, failedDeletionCount: cleanup.failedFileIds.length };
+  }
+}
+
 let client: OpenAI | null = null;
 
 function getOpenAIClient() {
@@ -222,13 +236,13 @@ export async function validateReviewFiles(input: Pick<LiveReviewInput, "manuscri
   return inspected;
 }
 
-async function uploadFile(openai: OpenAI, file: File) {
+async function uploadFile(openai: OpenAI, file: File, signal: AbortSignal) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   return openai.files.create({
     file: await toFile(bytes, file.name, { type: file.type || "application/octet-stream" }),
     purpose: "user_data",
     expires_after: { anchor: "created_at", seconds: 3600 },
-  });
+  }, { signal });
 }
 
 export async function cleanupWithRetry(
@@ -259,7 +273,24 @@ export async function cleanupWithRetry(
 }
 
 async function cleanupFiles(openai: OpenAI, fileIds: string[]) {
-  return cleanupWithRetry(fileIds, (fileId) => openai.files.delete(fileId));
+  const results = await Promise.all(fileIds.map((fileId) => cleanupWithRetry(
+    [fileId],
+    (id) => openai.files.delete(id, { signal: AbortSignal.timeout(DELETE_ATTEMPT_TIMEOUT_MS) }),
+  )));
+  const deletedFileIds = results.flatMap((result) => result.deletedFileIds);
+  const failedFileIds = results.flatMap((result) => result.failedFileIds);
+  return {
+    status: failedFileIds.length === 0 ? "complete" as const : "partial" as const,
+    deletedFileIds,
+    failedFileIds,
+  };
+}
+
+export function fallbackTimeoutForElapsed(elapsedMs: number) {
+  return Math.min(
+    SINGLE_AGENT_TIMEOUT_MS,
+    Math.max(0, LIVE_REVIEW_BUDGET_MS - CLEANUP_RESERVE_MS - Math.max(0, elapsedMs)),
+  );
 }
 
 function roleForAgent(agent: string) {
@@ -448,8 +479,8 @@ async function runMultiAgent(openai: OpenAI, uploaded: UploadedInput[], input: L
   }
 }
 
-async function runSingleAgent(openai: OpenAI, uploaded: UploadedInput[], input: LiveReviewInput): Promise<RawRun> {
-  const timeout = createLinkedTimeout(input.signal, SINGLE_AGENT_TIMEOUT_MS);
+async function runSingleAgent(openai: OpenAI, uploaded: UploadedInput[], input: LiveReviewInput, timeoutMs = SINGLE_AGENT_TIMEOUT_MS): Promise<RawRun> {
+  const timeout = createLinkedTimeout(input.signal, timeoutMs);
   const startedAt = Date.now();
   try {
     if (input.signal?.aborted) throw new ReviewCancelledError();
@@ -586,30 +617,53 @@ export async function runLiveReview(input: LiveReviewInput): Promise<ReviewResul
     return { fileName: file.name, sha256: sha256Hex(bytes) };
   });
   const uploaded: UploadedInput[] = [];
+  const startedAt = Date.now();
   let review: ReviewResult | null = null;
-  let cleanup: ReviewResult["provenance"]["cleanup"] = {
+  let failure: unknown = null;
+  let cleanup: { status: "complete" | "partial"; deletedFileIds: string[]; failedFileIds: string[] } = {
     status: "complete",
     deletedFileIds: [],
     failedFileIds: [],
   };
   try {
-    for (const entry of inspected) {
-      if (input.signal?.aborted) throw new ReviewCancelledError();
-      const created = await uploadFile(openai, entry.file);
-      uploaded.push({ file: entry.file, id: created.id, kind: entry.kind });
+    const uploadTimeout = createLinkedTimeout(input.signal, UPLOAD_TIMEOUT_MS);
+    try {
+      const uploadResults = await Promise.allSettled(inspected.map(async (entry) => ({
+        entry,
+        created: await uploadFile(openai, entry.file, uploadTimeout.signal),
+      })));
+      for (const result of uploadResults) {
+        if (result.status === "fulfilled") {
+          uploaded.push({ file: result.value.entry.file, id: result.value.created.id, kind: result.value.entry.kind });
+        }
+      }
+      const rejected = uploadResults.find((result): result is PromiseRejectedResult => result.status === "rejected");
+      if (rejected) throw new Error("A temporary file upload failed.", { cause: rejected.reason });
+    } finally {
+      uploadTimeout.dispose();
     }
 
     const raw = isMultiAgentAvailable()
       ? await runWithSingleAgentFallback(
         () => runMultiAgent(openai, uploaded, input),
-        () => runSingleAgent(openai, uploaded, input),
+        () => {
+          const timeoutMs = fallbackTimeoutForElapsed(Date.now() - startedAt);
+          if (timeoutMs <= 0) throw new Error("No time remained for the stable fallback before cleanup.");
+          return runSingleAgent(openai, uploaded, input, timeoutMs);
+        },
         () => Boolean(input.signal?.aborted),
       )
       : await runSingleAgent(openai, uploaded, input);
     review = finalizeReview(raw, files, inputHashes);
     for (const source of review.sources) await emit(input.onEvent, { event: "source.found", agent: "/root", source });
+  } catch (cause) {
+    failure = cause;
   } finally {
     cleanup = await cleanupFiles(openai, uploaded.map((entry) => entry.id));
+  }
+  if (failure) {
+    if (input.signal?.aborted || failure instanceof ReviewCancelledError) throw new ReviewCancelledError();
+    throw new LiveReviewExecutionError(failure, cleanup);
   }
   if (!review) throw new Error("The review did not produce a result.");
   review.provenance.cleanup = cleanup;
