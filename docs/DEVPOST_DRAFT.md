@@ -65,7 +65,7 @@ Second Lab does not run experiments, prove novelty, detect misconduct, certify a
 ## Links
 
 - Project: [Second Lab](https://second-lab.vercel.app)
-- Judge-accessible repository: **[PENDING]**
+- Judge-accessible repository: [tortre/second-lab](https://github.com/tortre/second-lab)
 - Demo video: **[PENDING]**
 - Evaluation artifact: `/demo/evaluation-scorecard.json`
 

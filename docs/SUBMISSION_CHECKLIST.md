@@ -9,19 +9,19 @@ Deadline: **July 21, 2026 at 5:00 PM PT / 7:00 PM CT.** Target submission: July 
 - [ ] Any remaining guardian-structure question has been resolved with Devpost support; separate confirmation is not required by the published rules.
 - [ ] Optional: Codex credit request is submitted while credits remain available.
 - [ ] Judge access code is tested in a fresh browser session.
-- [ ] Cached LeafLens demo works without access and without an API key.
+- [x] Cached LeafLens demo works without access and without an API key.
 
 ## Product evidence
 
-- [ ] The paper/code drop zone and **No project? Try the demo** are visible at 1280px and 390px.
+- [x] The paper/code drop zone and **No project? Try the demo** are visible at 1280px and 390px.
 - [ ] When live access is required, the judge explicitly sees **Run live demo** and **Use instant demo**; the app never silently downgrades a live request.
-- [ ] LeafLens surfaces metric mismatch, leakage, and unsupported baseline findings.
-- [ ] The unreliable Transformer finding is absent from the judge path.
-- [ ] Every finding has status, source IDs, exact excerpts, and stable or visibly model-located anchors.
-- [ ] Every displayed web URL is HTTPS and present in native source output.
-- [ ] Direct correction is hidden initially; assessment, hint, two-attempt reveal, and learning receipt work.
-- [ ] Receipt includes attempts, final explanation, revision plan, sources, mastered/unresolved concepts, and full provenance.
-- [ ] Incomplete exports say learning receipt; mastery wording appears only after every finding is mastered.
+- [x] LeafLens surfaces metric mismatch, leakage, and unsupported baseline findings.
+- [x] The unreliable Transformer finding is absent from the judge path.
+- [x] Every finding has status, source IDs, exact excerpts, and stable or visibly model-located anchors.
+- [x] Every displayed web URL is HTTPS and present in native source output.
+- [x] Direct correction is hidden initially; assessment, hint, two-attempt reveal, and learning receipt work.
+- [x] Receipt includes attempts, final explanation, revision plan, sources, mastered/unresolved concepts, and full provenance.
+- [x] Incomplete exports say learning receipt; mastery wording appears only after every finding is mastered.
 - [ ] Core instructional/result text is 15–16px; technical proof metadata is at least 12px.
 
 ## Reliability, privacy, and security
@@ -60,11 +60,11 @@ pnpm build
 
 ## Repository and build evidence
 
-- [ ] A clean, dated repository is either public with a relevant license or private and shared with `testing@devpost.com` and `build-week-event@openai.com`.
+- [x] A clean, dated repository is public at `https://github.com/tortre/second-lab` with an MIT license.
 - [ ] README covers setup, sample data, tests, architecture, Codex contribution, human decisions, privacy, evaluation, and limitations.
 - [ ] `BUILD_LOG.md` pending fields are replaced with evidence.
-- [ ] Primary implementation `/feedback` Session ID is recorded and submitted.
-- [ ] No secrets, real student work, temporary uploads, or unredacted security output are committed.
+- [x] Primary implementation `/feedback` Session ID is recorded in `BUILD_LOG.md`; it still must be entered in Devpost.
+- [x] No secrets, real student work, temporary uploads, or unredacted security output are committed.
 
 ## Demo video: 2:45–2:55
 

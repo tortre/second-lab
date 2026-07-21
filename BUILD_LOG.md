@@ -40,16 +40,16 @@ This file separates verified work from intended work. A checked item must have r
 - Initial baseline commit hash: `85a09f9`
 - Education implementation commit hash: `1e6c2e4`
 - Simplified local landing commit hash: `e12e140`
-- Submission-readiness fixes: current dated commit in `git log` (local only; no remote configured)
+- Submission-readiness fixes: `7039b04` and verified application commit `b98ad9ffacad199430c587860676cec8a54bb054`; public remote `main` includes both
 - Production deployment URL: `https://second-lab.vercel.app`
-- Judge-accessible repository URL: `PENDING — no git remote is configured`
+- Judge-accessible repository URL: `https://github.com/tortre/second-lab` (public)
 - Live smoke-test timestamp and response ID: `PENDING`
 - Cached evaluation artifact/command: `docs/EVALUATION_SCORECARD.md` / `pnpm eval:cached`
 - Live evaluation artifact/command: `PENDING`
 - User-session notes and attributable quote permission: `PENDING`
 - Public YouTube demo URL: `PENDING`
 - Devpost submission URL: `PENDING`
-- Primary Codex `/feedback` Session ID: `PENDING — add after the primary implementation task`
+- Primary Codex `/feedback` Session ID: `019f5c7d-1784-7022-bab3-6c85650d765c`
 
 Do not turn any pending item into a submission claim until it is replaced by evidence.
 
@@ -88,8 +88,8 @@ The local browser environment had no `OPENAI_API_KEY`, so these checks do not co
 - [x] Results were simplified locally to one finding at a time with **Paper says**, **Code shows**, **Why it matters**, and collapsed proof.
 - [x] Learning-receipt wording and unresolved counts are shown until every finding is mastered.
 - [x] `pnpm verify`, `pnpm eval:cached`, and `git diff --check` passed after these fixes: 16 files, 58 tests, a clean production build, 8/8 seeded fixture findings, and 0 unsupported fixture findings.
-- [ ] Final post-change browser pass for the one-finding results view must be repeated; the local browser connection rejected the reload after the code change.
-- [ ] The local-only interface and fixes have not been deployed, per the project owner's explicit instruction.
+- [x] Final post-change browser pass repeated on July 21 at 1280 × 720 and 390 × 844 with no console errors, framework overlay, or horizontal overflow.
+- [x] The verified interface and fixes were deployed to production on July 21.
 
 ### Technical release issues still open
 
@@ -109,3 +109,16 @@ The local browser environment had no `OPENAI_API_KEY`, so these checks do not co
 - [x] The deployed coaching endpoint assessed an evidence-based metric diagnosis and revision plan as `mastered`.
 - [x] Vercel reported no runtime error clusters during the deployment smoke-test window.
 - [ ] Live GPT-5.6 smoke test: blocked until `OPENAI_API_KEY`, `JUDGE_ACCESS_CODE`, and `SESSION_SIGNING_SECRET` are configured in Vercel.
+
+## 2026-07-21 — Final technical submission audit
+
+- [x] `pnpm verify` passed: 16 test files, 58 tests, TypeScript, ESLint, and the Next.js production build.
+- [x] `pnpm eval:cached` reported 8/8 seeded findings and 0 unsupported findings; `git diff --check` passed.
+- [x] Fresh local desktop flow passed from landing through four mastered findings and a downloaded mastery receipt; all `/api/review` and `/api/coach` requests returned HTTP 200.
+- [x] Fresh local mobile checks at 390 × 844 passed for the landing and results views with no horizontal overflow.
+- [x] Public repository `https://github.com/tortre/second-lab` resolves without authentication and remote `main` includes verified application commit `b98ad9ffacad199430c587860676cec8a54bb054`.
+- [x] Production deployment `dpl_EMp386m1V2z7d5C95iFA1zuDMZcc` reached `READY` and owns the `second-lab.vercel.app` alias.
+- [x] Production returned HTTP 200, rendered the current **Check your research** judge path, completed the four-finding cached review, and assessed an evidence-linked coaching response as `mastered` with no browser console errors.
+- [x] Vercel reported no runtime error clusters during the post-deploy verification window.
+- [x] Production health truthfully reports `liveReview: false`, `multiAgent: false`, and `accessRequired: false`; this audit is cached-demo proof, not a live GPT-5.6 runtime smoke test.
+- [ ] Devpost project/team/submission state could not be checked until the operator signs in to Devpost in the browser.
